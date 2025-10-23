@@ -23,7 +23,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Highlight active link
     links.forEach(l => l.classList.remove("active"));
-    link.classList.add("active");
+    if (link) link.classList.add("active");
 
     try {
       const response = await fetch(`loader.php?page=${page}`, { cache: "no-store" });
@@ -31,7 +31,15 @@ document.addEventListener("DOMContentLoaded", () => {
       const html = await response.text();
       mainContent.innerHTML = html;
       document.title = `Aggresand Dashboard - ${pageTitles[page] || "Dashboard"}`;
-      history.replaceState(null, "", "main.php");
+
+      // Update URL hash
+      history.replaceState(null, "", `#${page}`);
+
+      // If Accounts page is loaded, initialize its JS
+      if (page === "accounts.php") {
+        initAccountsPage();
+      }
+
     } catch (error) {
       mainContent.innerHTML = `<div class="error-msg">❌ Error loading <b>${page}</b>: ${error.message}</div>`;
     } finally {
@@ -52,7 +60,52 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Default load (first page)
-  const defaultPage = document.querySelector('.sidebar-link[data-page="trans_entry.php"]');
-  if (defaultPage) defaultPage.click();
+  // Load page based on URL hash or fallback to default
+  const initialPage = location.hash ? location.hash.substring(1) : "trans_entry.php";
+  const initialLink = document.querySelector(`.sidebar-link[data-page="${initialPage}"]`);
+  if (initialLink) loadPage(initialPage, initialLink);
+
+  // --------------------------
+  // Accounts page JS
+  // --------------------------
+  function initAccountsPage() {
+    const $ = jQuery; // Ensure jQuery is available
+
+    // Handle account creation via AJAX
+    $('#createUserForm').off('submit').on('submit', function(e) {
+      e.preventDefault();
+
+      $.ajax({
+        url: 'pages/accounts.php', // handles POST
+        method: 'POST',
+        data: $(this).serialize() + '&create_user=1',
+        dataType: 'json',
+        success: function(response) {
+          if (response.success) {
+            alert('✅ User account created successfully!');
+            $('#createUserModal').modal('hide');
+            $('#createUserForm')[0].reset();
+            reloadAccountsTable();
+          } else {
+            alert('❌ Error: ' + response.error);
+          }
+        },
+        error: function(xhr) {
+          alert('Request failed: ' + xhr.responseText);
+        }
+      });
+    });
+
+    // Reload accounts table
+    function reloadAccountsTable() {
+      $.ajax({
+        url: 'pages/accounts.php',
+        method: 'GET',
+        success: function(html) {
+          const newBody = $(html).find('#accountsTable').html();
+          $('#accountsTable').html(newBody);
+        }
+      });
+    }
+  }
 });
