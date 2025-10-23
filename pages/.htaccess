@@ -1,0 +1,10 @@
+# Deny direct browser access to .php files in /pages/
+<FilesMatch "\.php$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Allow access only from main.php (using PHP include or fetch)
+<Files main.php>
+    Allow from all
+</Files>

@@ -1,0 +1,43 @@
+<?php define('IN_DASHBOARD', true); ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Main Dashboard</title>
+
+  <!-- Bootstrap (optional) -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <?php include('include/header.php'); ?>
+
+  <div class="app-container d-flex">
+    <?php include('include/sidebar.php'); ?>
+
+    <main class="app-content flex-grow-1 p-4 position-relative">
+  <!-- Spinner overlay (always present) -->
+  <div class="loading-spinner" id="loading-spinner" style="display:none;">
+    <div class="spinner"></div>
+    <p>Loading...</p>
+  </div>
+
+  <!-- Main dynamic content -->
+  <div id="main-content" class="content-area">
+    <h2>Welcome to the Dashboard</h2>
+    <p>Select a module from the sidebar.</p>
+  </div>
+</main>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Custom JS -->
+  <script src="js/scripts.js"></script>
+</body>
+</html>
