@@ -1,9 +1,9 @@
 -- ======================================
--- SCHEMA: aggresand-db
+-- SCHEMA: aggresand_db
 -- ======================================
 
-CREATE DATABASE IF NOT EXISTS `aggresand-db`;
-USE `aggresand-db`;
+CREATE DATABASE IF NOT EXISTS `aggresand_db`;
+USE `aggresand_db`;
 
 -- ===============================
 -- TABLE: Admin

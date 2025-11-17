@@ -1,4 +1,13 @@
-<?php define('IN_DASHBOARD', true); ?>
+<?php 
+session_start(); // Start the session at the top
+
+// Check if the user is logged in
+if (!isset($_SESSION['user_id'])) {
+    header("Location: index.php"); // Redirect to login if not logged in
+    exit;
+}
+
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -20,18 +29,18 @@
     <?php include('include/sidebar.php'); ?>
 
     <main class="app-content flex-grow-1 p-4 position-relative">
-  <!-- Spinner overlay (always present) -->
-  <div class="loading-spinner" id="loading-spinner" style="display:none;">
-    <div class="spinner"></div>
-    <p>Loading...</p>
-  </div>
+      <!-- Spinner overlay (always present) -->
+      <div class="loading-spinner" id="loading-spinner" style="display:none;">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+      </div>
 
-  <!-- Main dynamic content -->
-  <div id="main-content" class="content-area">
-    <h2>Welcome to the Dashboard</h2>
-    <p>Select a module from the sidebar.</p>
-  </div>
-</main>
+      <!-- Main dynamic content -->
+      <div id="main-content" class="content-area">
+        <h2>Welcome, <?php echo htmlspecialchars($_SESSION['username']); ?>!</h2>
+        <p>Select a module from the sidebar.</p>
+      </div>
+    </main>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
