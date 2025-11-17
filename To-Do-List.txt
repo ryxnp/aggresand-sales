@@ -1,0 +1,4 @@
+- Fix Contractor Update button. Doesn't display records + All fields are required error.
+- Static HTML upon data entry. 
+
+- Redo all crud processes.
