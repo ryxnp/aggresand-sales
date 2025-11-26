@@ -15,8 +15,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $password = trim($_POST['password']);
 
     if (!empty($username) && !empty($password)) {
-        // Query user_account table by username
-        $stmt = $conn->prepare("SELECT user_id, username, password, role, status FROM user_account WHERE username = :username LIMIT 1");
+        // Query admin table by username
+        $stmt = $conn->prepare("SELECT admin_id, username, password, role, status FROM admin WHERE username = :username LIMIT 1");
         $stmt->bindParam(':username', $username, PDO::PARAM_STR);
         $stmt->execute();
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -25,13 +25,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             if ($user['status'] !== 'Active') {
                 $error = "Your account is inactive. Contact admin.";
             } elseif (password_verify($password, $user['password'])) {
-                $_SESSION['user_id'] = $user['user_id'];
+                $_SESSION['admin_id'] = $user['admin_id'];
                 $_SESSION['username'] = $user['username'];
                 $_SESSION['role'] = $user['role'];
 
                 // Update last_login timestamp
-                $update = $conn->prepare("UPDATE user_account SET last_login = NOW() WHERE user_id = :user_id");
-                $update->bindParam(':user_id', $user['user_id'], PDO::PARAM_INT);
+                $update = $conn->prepare("UPDATE admin SET last_login = NOW() WHERE admin_id = :admin_id");
+                $update->bindParam(':admin_id', $user['admin_id'], PDO::PARAM_INT);
                 $update->execute();
 
                 header("Location: main.php");

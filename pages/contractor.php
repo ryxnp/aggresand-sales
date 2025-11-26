@@ -1,204 +1,91 @@
 <?php
 session_start();
-require_once __DIR__ . '/../config/db.php';
-
-// Ensure user is logged in
-if (!isset($_SESSION['user_id'])) {
-    header("Location: ../index.php");
-    exit;
-}
-
-// Fetch contractors (exclude deleted)
-try {
-    $stmt = $conn->query("SELECT contractor_id, contractor_name, contact_person, contact_no, email, status, date_created, date_edited, edited_by 
-                          FROM contractor 
-                          WHERE is_deleted = 0 
-                          ORDER BY date_created DESC");
-    $contractors = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    $contractors = [];
-    $error_msg = "Error loading contractors: " . $e->getMessage();
-}
+require_once __DIR__.'/../config/db.php';
+require_once __DIR__.'/../helpers/alerts.php';
+$total_records = $conn->query("SELECT COUNT(*) FROM contractor WHERE is_deleted = 0")->fetchColumn();
+$limit=10; require __DIR__.'/../helpers/pagination.php';
+$stmt = $conn->prepare("SELECT * FROM contractor WHERE is_deleted=0 ORDER BY date_created DESC LIMIT :limit OFFSET :offset");
+$stmt->bindValue(':limit',$pagination['limit'],PDO::PARAM_INT);
+$stmt->bindValue(':offset',$pagination['offset'],PDO::PARAM_INT);
+$stmt->execute(); $rows=$stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
-
-<div class="container mt-4">
-
-    <!-- Page Header -->
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h3>Contractors</h3>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createContractorModal">
-            Add Contractor
-        </button>
-    </div>
-
-    <!-- Messages -->
-    <?php if(isset($_SESSION['success'])): ?>
-        <div class="alert alert-success"><?= $_SESSION['success']; unset($_SESSION['success']); ?></div>
-    <?php endif; ?>
-    <?php if(isset($_SESSION['error'])): ?>
-        <div class="alert alert-danger"><?= $_SESSION['error']; unset($_SESSION['error']); ?></div>
-    <?php endif; ?>
-    <?php if(isset($error_msg)): ?>
-        <div class="alert alert-danger"><?= $error_msg; ?></div>
-    <?php endif; ?>
-
-    <!-- Contractors Table -->
-    <div class="table-responsive">
-        <table class="table table-striped align-middle">
-            <thead class="table-dark">
-                <tr>
-                    <th>Contractor Name</th>
-                    <th>Contact Person</th>
-                    <th>Contact No</th>
-                    <th>Email</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if($contractors): ?>
-                    <?php foreach($contractors as $c): ?>
-                        <tr>
-                            <td><?= htmlspecialchars($c['contractor_name']) ?></td>
-                            <td><?= htmlspecialchars($c['contact_person']) ?></td>
-                            <td><?= htmlspecialchars($c['contact_no']) ?></td>
-                            <td><?= htmlspecialchars($c['email']) ?></td>
-                            <td><?= htmlspecialchars($c['status']) ?></td>
-                            <td>
-                                <!-- Edit Button -->
-                                <button class="btn btn-sm btn-warning editBtn" 
-                                        data-bs-toggle="modal" 
-                                        data-bs-target="#editContractorModal"
-                                        data-id="<?= $c['contractor_id'] ?>"
-                                        data-name="<?= htmlspecialchars($c['contractor_name'], ENT_QUOTES) ?>"
-                                        data-person="<?= htmlspecialchars($c['contact_person'], ENT_QUOTES) ?>"
-                                        data-contact="<?= htmlspecialchars($c['contact_no'], ENT_QUOTES) ?>"
-                                        data-email="<?= htmlspecialchars($c['email'], ENT_QUOTES) ?>"
-                                        data-status="<?= $c['status'] ?>">
-                                    Edit
-                                </button>
-
-                                <!-- Delete Form -->
-                                <form method="POST" action="../config/process_contractor.php" style="display:inline-block">
-                                    <input type="hidden" name="contractor_id" value="<?= $c['contractor_id'] ?>">
-                                    <button type="submit" name="delete_contractor" class="btn btn-sm btn-danger"
-                                            onclick="return confirm('Are you sure you want to delete this contractor?');">
-                                        Delete
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <tr><td colspan="6" class="text-center text-muted">No contractors found.</td></tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
+<!doctype html><html><head><meta charset="utf-8"><title>Contractors</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"></head>
+<body class="p-4"><div class="container">
+<h2>Contractors</h2>
+<?php require __DIR__.'/../helpers/alerts.php'; ?>
+<button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addModal">Add Contractor</button>
+<div class="table-responsive"><table class="table table-striped table-bordered"><thead class="table-light"><tr>
+<th>ID</th><th>Name</th><th>Contact Person</th><th>Contact No</th><th>Email</th><th>Status</th><th>Created</th><th>Actions</th>
+</tr></thead><tbody>
+<?php if(!$rows): ?><tr><td colspan="8" class="text-center">No records</td></tr><?php else:
+foreach($rows as $r): ?>
+<tr>
+<td><?=htmlspecialchars($r['contractor_id'])?></td>
+<td><?=htmlspecialchars($r['contractor_name'])?></td>
+<td><?=htmlspecialchars($r['contact_person'])?></td>
+<td><?=htmlspecialchars($r['contact_no'])?></td>
+<td><?=htmlspecialchars($r['email'])?></td>
+<td><?=htmlspecialchars($r['status'])?></td>
+<td><?=htmlspecialchars($r['date_created'])?></td>
+<td style="white-space:nowrap">
+<button class="btn btn-sm btn-secondary" data-bs-toggle="modal" data-bs-target="#editModal"
+ data-id="<?= $r['contractor_id'] ?>"
+ data-contractor_name="<?= htmlspecialchars($r['contractor_name'],ENT_QUOTES) ?>"
+ data-contact_person="<?= htmlspecialchars($r['contact_person'],ENT_QUOTES) ?>"
+ data-contact_no="<?= htmlspecialchars($r['contact_no'],ENT_QUOTES) ?>"
+ data-email="<?= htmlspecialchars($r['email'],ENT_QUOTES) ?>"
+ data-status="<?= htmlspecialchars($r['status'],ENT_QUOTES) ?>">Edit</button>
+<form action="../process/contractor/delete.php" method="POST" style="display:inline" onsubmit="return confirm('Delete?')">
+<input type="hidden" name="contractor_id" value="<?= $r['contractor_id'] ?>">
+<button class="btn btn-sm btn-danger">Delete</button></form>
+</td>
+</tr>
+<?php endforeach; endif; ?>
+</tbody></table></div>
+<?php include __DIR__.'/../helpers/pagination.php'; ?>
 </div>
 
-<!-- Create Contractor Modal -->
-<div class="modal fade" id="createContractorModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form method="POST" action="../config/process_contractor.php" autocomplete="off">
-                <div class="modal-header">
-                    <h5 class="modal-title">Add Contractor</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Contractor Name</label>
-                        <input type="text" name="contractor_name" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Contact Person</label>
-                        <input type="text" name="contact_person" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Contact Number</label>
-                        <input type="text" name="contact_no" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input type="email" name="email" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Status</label>
-                        <select name="status" class="form-select" required>
-                            <option value="active" selected>Active</option>
-                            <option value="inactive">Inactive</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" name="create_contractor" class="btn btn-primary">Save</button>
-                </div>
-            </form>
-        </div>
-    </div>
+<!-- Add Modal -->
+<div class="modal fade" id="addModal" tabindex="-1"><div class="modal-dialog">
+<form action="../process/contractor/create.php" method="POST" class="modal-content">
+<div class="modal-header"><h5 class="modal-title">Add Contractor</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+<div class="modal-body">
+  <div class="mb-3"><label class="form-label">Name</label><input class="form-control" name="contractor_name" required></div>
+  <div class="mb-3"><label class="form-label">Contact Person</label><input class="form-control" name="contact_person"></div>
+  <div class="mb-3"><label class="form-label">Contact No</label><input class="form-control" name="contact_no"></div>
+  <div class="mb-3"><label class="form-label">Email</label><input class="form-control" name="email" type="email"></div>
+  <div class="mb-3"><label class="form-label">Status</label><select name="status" class="form-select"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
 </div>
+<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button class="btn btn-primary">Save</button></div>
+</form></div></div>
 
-<!-- Edit Contractor Modal -->
-<div class="modal fade" id="editContractorModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form method="POST" action="../config/process_contractor.php" autocomplete="off">
-                <div class="modal-header">
-                    <h5 class="modal-title">Edit Contractor</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" id="edit_contractor_id" name="contractor_id">
-                    <div class="mb-3">
-                        <label class="form-label">Contractor Name</label>
-                        <input type="text" id="edit_contractor_name" name="contractor_name" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Contact Person</label>
-                        <input type="text" id="edit_contact_person" name="contact_person" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Contact Number</label>
-                        <input type="text" id="edit_contact_no" name="contact_no" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input type="email" id="edit_email" name="email" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Status</label>
-                        <select id="edit_status" name="status" class="form-select" required>
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" name="update_contractor" class="btn btn-primary">Update</button>
-                </div>
-            </form>
-        </div>
-    </div>
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1"><div class="modal-dialog">
+<form action="../process/contractor/update.php" method="POST" class="modal-content">
+<div class="modal-header"><h5 class="modal-title">Edit Contractor</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+<div class="modal-body">
+<input type="hidden" name="contractor_id" id="edit_contractor_id">
+<div class="mb-3"><label class="form-label">Name</label><input id="edit_contractor_name" class="form-control" name="contractor_name" required></div>
+<div class="mb-3"><label class="form-label">Contact Person</label><input id="edit_contact_person" class="form-control" name="contact_person"></div>
+<div class="mb-3"><label class="form-label">Contact No</label><input id="edit_contact_no" class="form-control" name="contact_no"></div>
+<div class="mb-3"><label class="form-label">Email</label><input id="edit_email" class="form-control" name="email" type="email"></div>
+<div class="mb-3"><label class="form-label">Status</label><select id="edit_status" name="status" class="form-select"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
 </div>
+<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button class="btn btn-primary">Update</button></div>
+</form></div></div>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    var editModalEl = document.getElementById('editContractorModal');
-    if (!editModalEl) return;
-
-    editModalEl.addEventListener('show.bs.modal', function (event) {
-        var button = event.relatedTarget;
-        if (!button) return;
-
-        document.getElementById('edit_contractor_id').value = button.getAttribute('data-id') || '';
-        document.getElementById('edit_contractor_name').value = button.getAttribute('data-name') || '';
-        document.getElementById('edit_contact_person').value = button.getAttribute('data-person') || '';
-        document.getElementById('edit_contact_no').value = button.getAttribute('data-contact') || '';
-        document.getElementById('edit_email').value = button.getAttribute('data-email') || '';
-        document.getElementById('edit_status').value = button.getAttribute('data-status') || 'active';
-    });
+var editModal = document.getElementById('editModal');
+editModal.addEventListener('show.bs.modal', function(e){
+ var btn = e.relatedTarget;
+ document.getElementById('edit_contractor_id').value = btn.getAttribute('data-id');
+ document.getElementById('edit_contractor_name').value = btn.getAttribute('data-contractor_name') || '';
+ document.getElementById('edit_contact_person').value = btn.getAttribute('data-contact_person') || '';
+ document.getElementById('edit_contact_no').value = btn.getAttribute('data-contact_no') || '';
+ document.getElementById('edit_email').value = btn.getAttribute('data-email') || '';
+ document.getElementById('edit_status').value = btn.getAttribute('data-status') || 'active';
 });
 </script>
+</body></html>

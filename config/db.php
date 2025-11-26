@@ -4,7 +4,7 @@
 // Database configuration
 $host = "localhost";        // or your database host
 $username = "root";         // your MySQL username
-$password = "T3ch@rc1";             // your MySQL password
+$password = "9320718a";             // your MySQL password
 $database = "aggresand_db"; // your database name
 
 try {

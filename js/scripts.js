@@ -109,3 +109,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 });
+
+setTimeout(() => {
+        let alertNode = document.querySelector('.alert');
+        if (alertNode) {
+            let alert = new bootstrap.Alert(alertNode);
+            alert.close();
+        }
+    }, 3000);
