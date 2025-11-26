@@ -88,6 +88,19 @@ $(function () {
             window.TruckPage.init();
         }
 
+        if (page === 'trans_entry.php' &&
+            window.TransEntryPage &&
+            typeof window.TransEntryPage.init === 'function') {
+            window.TransEntryPage.init();
+        }
+
+        if (page === 'materials.php' &&
+            window.MaterialsPage &&
+            typeof window.MaterialsPage.init === 'function') {
+            window.MaterialsPage.init();
+        }
+
+
         // (Later you can add MaterialsPage, AccountsPage, etc.)
     }
 
