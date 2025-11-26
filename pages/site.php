@@ -162,7 +162,7 @@ if ($q !== '') {
     $params[':q'] = '%' . $q . '%';
 }
 
-$per_page     = 10;
+$per_page     = 5;
 $current_page = isset($_GET['p']) && ctype_digit($_GET['p']) ? (int)$_GET['p'] : 1;
 if ($current_page < 1) $current_page = 1;
 
@@ -258,9 +258,9 @@ $queryForPagination = http_build_query([
                     <span class="me-auto">Site List</span>
 
                     <form class="d-flex gap-2 site-filter-form" method="GET" action="">
-                        <input type="text" name="q" value="<?= htmlspecialchars($q) ?>" class="form-control form-control-sm" placeholder="Search...">
+                        <input type="text" name="q" value="<?= htmlspecialchars($q) ?>" class="form-control form-control-sm" placeholder="Search Site" style="width: 220px;">
                         
-                        <select name="status_filter" class="form-select form-select-sm">
+                        <select name="status_filter" class="form-select form-select-sm" style="width: 220px;">
                             <option value="">All Status</option>
                             <option value="active" <?= $statusFilter === 'active' ? 'selected' : '' ?>>Active</option>
                             <option value="inactive" <?= $statusFilter === 'inactive' ? 'selected' : '' ?>>Inactive</option>

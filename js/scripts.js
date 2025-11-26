@@ -100,6 +100,12 @@ $(function () {
             window.MaterialsPage.init();
         }
 
+        if (page === 'reports.php' &&
+            window.ReportsPage &&
+            typeof window.ReportsPage.init === 'function') {
+            window.ReportsPage.init();
+        }
+
 
         // (Later you can add MaterialsPage, AccountsPage, etc.)
     }

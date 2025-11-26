@@ -55,6 +55,7 @@ if (!isset($_SESSION['admin_id'])) {
   <script src="js/truck.js"></script>
   <script src="js/trans_entry.js"></script>
   <script src="js/materials.js"></script>
+  <script src="js/reports.js"></script>
 
   </body>
 </html>

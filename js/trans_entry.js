@@ -2,6 +2,24 @@
 
 window.TransEntryPage = (() => {
 
+
+    function select2FormatSite(item) {
+    if (!item.id) {
+        return item.text; // default for placeholder
+    }
+
+    const remarks = $(item.element).data('remarks') || '';
+
+    const $container = $(`
+        <div>
+            <div><strong>${item.text}</strong></div>
+            ${remarks ? `<small class="text-muted">${remarks}</small>` : ''}
+        </div>
+    `);
+
+    return $container;
+}
+
     function initSelects() {
         // Make dropdowns searchable using Select2 if available
         if ($.fn.select2) {

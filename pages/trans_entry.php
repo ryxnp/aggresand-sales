@@ -297,7 +297,7 @@ $contractors = $conn->query("
 
 // sites
 $sites = $conn->query("
-    SELECT site_id, site_name 
+    SELECT site_id, site_name, remarks 
     FROM site 
     WHERE is_deleted = 0 
     ORDER BY site_name
@@ -389,7 +389,7 @@ if ($q !== '') {
 }
 
 // pagination
-$per_page     = 10;
+$per_page     = 5;
 $current_page = isset($_GET['p']) && ctype_digit($_GET['p']) ? (int)$_GET['p'] : 1;
 if ($current_page < 1) $current_page = 1;
 
@@ -516,8 +516,15 @@ $queryBase = http_build_query([
                         <label class="form-label">Site</label>
                         <select name="site_id" id="site_id" class="form-select select2-field">
                             <option value="">-- Select Site --</option>
-                            <?php foreach ($sites as $st) { ?>
-                                <option value="<?= (int)$st['site_id'] ?>"><?= htmlspecialchars($st['site_name']) ?></option>
+                            <?php foreach ($sites as $st) { 
+                                $label = $st['site_name'];
+                                if (!empty($st['remarks'])) {
+                                    $label .= ' - ' . $st['remarks'];
+                                }
+                            ?>
+                                <option value="<?= (int)$st['site_id'] ?>">
+                                    <?= htmlspecialchars($label) ?>
+                                </option>
                             <?php } ?>
                         </select>
                     </div>
