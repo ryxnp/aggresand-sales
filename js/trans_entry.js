@@ -213,8 +213,30 @@ window.TransEntryPage = (() => {
         initCustomerForm();
         initDeliveryForm();
         initFiltersAndPagination();
+        initCollapseToggles();
     }
 
     return { init };
 
 })();
+
+function initCollapseToggles() {
+    // Any button with data-bs-toggle="collapse" and data-bs-target
+    document.querySelectorAll('[data-bs-toggle="collapse"][data-bs-target]').forEach(btn => {
+        const targetSelector = btn.getAttribute('data-bs-target');
+        const target = document.querySelector(targetSelector);
+        if (!target) return;
+
+        const updateLabel = () => {
+            const isShown = target.classList.contains('show');
+            btn.textContent = isShown ? 'Hide form' : 'Show form';
+        };
+
+        // Initial label
+        updateLabel();
+
+        target.addEventListener('shown.bs.collapse', updateLabel);
+        target.addEventListener('hidden.bs.collapse', updateLabel);
+    });
+}
+

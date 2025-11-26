@@ -471,170 +471,195 @@ $queryBase = http_build_query([
 
     <div class="row">
         <!-- CUSTOMER FORM -->
-        <div class="col-lg-6 mb-4">
-            <div class="card">
-                <div class="card-header" id="customer-form-title">Customer</div>
-                <div class="card-body">
-                    <form id="customer-form" method="POST" action="pages/trans_entry.php">
-                        <input type="hidden" name="form_type" value="customer">
-                        <input type="hidden" name="action" id="customer_action" value="create">
-                        <input type="hidden" name="customer_id" id="customer_id">
-
-                        <div class="mb-3">
-                            <label class="form-label">Company</label>
-                            <select name="company_id" id="company_id" class="form-select select2-field">
-                                <option value="">-- Select Company --</option>
-                                <?php foreach ($companies as $co) { ?>
-                                    <option value="<?= (int)$co['company_id'] ?>"><?= htmlspecialchars($co['company_name']) ?></option>
-                                <?php } ?>
-                            </select>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Contractor</label>
-                            <select name="contractor_id" id="contractor_id" class="form-select select2-field">
-                                <option value="">-- Select Contractor --</option>
-                                <?php foreach ($contractors as $ct) { ?>
-                                    <option value="<?= (int)$ct['contractor_id'] ?>"><?= htmlspecialchars($ct['contractor_name']) ?></option>
-                                <?php } ?>
-                            </select>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Site</label>
-                            <select name="site_id" id="site_id" class="form-select select2-field">
-                                <option value="">-- Select Site --</option>
-                                <?php foreach ($sites as $st) { ?>
-                                    <option value="<?= (int)$st['site_id'] ?>"><?= htmlspecialchars($st['site_name']) ?></option>
-                                <?php } ?>
-                            </select>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Customer Name</label>
-                            <input type="text" name="customer_name" id="customer_name" class="form-control" required>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Contact No</label>
-                            <input type="text" name="contact_no" id="customer_contact_no" class="form-control">
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Email</label>
-                            <input type="email" name="email" id="customer_email" class="form-control">
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Address</label>
-                            <input type="text" name="address" id="customer_address" class="form-control">
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Status</label>
-                            <select name="status" id="customer_status" class="form-select">
-                                <option value="active">Active</option>
-                                <option value="inactive">Inactive</option>
-                            </select>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary" id="customer-submit-btn">Save Customer</button>
-                        <button type="button" class="btn btn-secondary d-none" id="customer-cancel-edit-btn">Cancel</button>
-                    </form>
-                </div>
-            </div>
+<div class="col-lg-6 mb-4">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span id="customer-form-title">Customer</span>
+            <button class="btn btn-sm btn-outline-secondary collapsed"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#customerFormCollapse"
+                    aria-expanded="false"
+                    aria-controls="customerFormCollapse">
+                Show form
+            </button>
         </div>
 
+        <div id="customerFormCollapse" class="collapse"><!-- initially closed -->
+            <div class="card-body">
+                <form id="customer-form" method="POST" action="pages/trans_entry.php">
+                    <input type="hidden" name="form_type" value="customer">
+                    <input type="hidden" name="action" id="customer_action" value="create">
+                    <input type="hidden" name="customer_id" id="customer_id">
+
+                    <div class="mb-3">
+                        <label class="form-label">Company</label>
+                        <select name="company_id" id="company_id" class="form-select select2-field">
+                            <option value="">-- Select Company --</option>
+                            <?php foreach ($companies as $co) { ?>
+                                <option value="<?= (int)$co['company_id'] ?>"><?= htmlspecialchars($co['company_name']) ?></option>
+                            <?php } ?>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Contractor</label>
+                        <select name="contractor_id" id="contractor_id" class="form-select select2-field">
+                            <option value="">-- Select Contractor --</option>
+                            <?php foreach ($contractors as $ct) { ?>
+                                <option value="<?= (int)$ct['contractor_id'] ?>"><?= htmlspecialchars($ct['contractor_name']) ?></option>
+                            <?php } ?>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Site</label>
+                        <select name="site_id" id="site_id" class="form-select select2-field">
+                            <option value="">-- Select Site --</option>
+                            <?php foreach ($sites as $st) { ?>
+                                <option value="<?= (int)$st['site_id'] ?>"><?= htmlspecialchars($st['site_name']) ?></option>
+                            <?php } ?>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Customer Name</label>
+                        <input type="text" name="customer_name" id="customer_name" class="form-control" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Contact No</label>
+                        <input type="text" name="contact_no" id="customer_contact_no" class="form-control">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" id="customer_email" class="form-control">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Address</label>
+                        <input type="text" name="address" id="customer_address" class="form-control">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select name="status" id="customer_status" class="form-select">
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="customer-submit-btn">Save Customer</button>
+                    <button type="button" class="btn btn-secondary d-none" id="customer-cancel-edit-btn">Cancel</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
         <!-- DELIVERY + TOTAL -->
-        <div class="col-lg-6 mb-4">
-            <div class="card mb-3">
-                <div class="card-header" id="delivery-form-title">Delivery</div>
-                <div class="card-body">
-                    <form id="delivery-form" method="POST" action="pages/trans_entry.php">
-                        <input type="hidden" name="form_type" value="delivery">
-                        <input type="hidden" name="action" id="delivery_action" value="create">
-                        <input type="hidden" name="del_id" id="del_id">
 
-                        <div class="mb-3">
-                            <label class="form-label">Customer</label>
-                            <select name="delivery_customer_id" id="delivery_customer_id" class="form-select select2-field">
-                                <option value="">-- Select Customer --</option>
-                                <?php foreach ($customers as $cu) { ?>
-                                    <option value="<?= (int)$cu['customer_id'] ?>"><?= htmlspecialchars($cu['customer_name']) ?></option>
-                                <?php } ?>
-                            </select>
+<div class="col-lg-6 mb-4">
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span id="delivery-form-title">Delivery</span>
+            <button class="btn btn-sm btn-outline-secondary collapsed"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#deliveryFormCollapse"
+                    aria-expanded="false"
+                    aria-controls="deliveryFormCollapse">
+                Show form
+            </button>
+        </div>
+
+        <div id="deliveryFormCollapse" class="collapse"><!-- initially closed -->
+            <div class="card-body">
+                <form id="delivery-form" method="POST" action="pages/trans_entry.php">
+                    <input type="hidden" name="form_type" value="delivery">
+                    <input type="hidden" name="action" id="delivery_action" value="create">
+                    <input type="hidden" name="del_id" id="del_id">
+
+                    <div class="mb-3">
+                        <label class="form-label">Customer</label>
+                        <select name="delivery_customer_id" id="delivery_customer_id" class="form-select select2-field">
+                            <option value="">-- Select Customer --</option>
+                            <?php foreach ($customers as $cu) { ?>
+                                <option value="<?= (int)$cu['customer_id'] ?>"><?= htmlspecialchars($cu['customer_name']) ?></option>
+                            <?php } ?>
+                        </select>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col">
+                            <label class="form-label">Delivery Date</label>
+                            <input type="date" name="delivery_date" id="delivery_date" class="form-control" required>
                         </div>
-
-                        <div class="row mb-3">
-                            <div class="col">
-                                <label class="form-label">Delivery Date</label>
-                                <input type="date" name="delivery_date" id="delivery_date" class="form-control" required>
-                            </div>
-                            <div class="col">
-                                <label class="form-label">Billing Date</label>
-                                <input type="date" name="billing_date" id="billing_date" class="form-control">
-                            </div>
+                        <div class="col">
+                            <label class="form-label">Billing Date</label>
+                            <input type="date" name="billing_date" id="billing_date" class="form-control">
                         </div>
+                    </div>
 
-                        <div class="mb-3">
-                            <label class="form-label">DR No</label>
-                            <input type="text" name="dr_no" id="dr_no" class="form-control">
+                    <div class="mb-3">
+                        <label class="form-label">DR No</label>
+                        <input type="text" name="dr_no" id="dr_no" class="form-control">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Truck</label>
+                        <select name="truck_id" id="truck_id" class="form-select select2-field">
+                            <option value="">-- Select Truck --</option>
+                            <?php foreach ($trucks as $tr) { ?>
+                                <option value="<?= (int)$tr['truck_id'] ?>"><?= htmlspecialchars($tr['plate_no']) ?></option>
+                            <?php } ?>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Material</label>
+                        <select name="material_id" id="material_id" class="form-select select2-field">
+                            <option value="">-- Select Material --</option>
+                            <?php foreach ($materials as $m) { ?>
+                                <option value="<?= (int)$m['material_id'] ?>"
+                                        data-unit-price="<?= htmlspecialchars($m['unit_price']) ?>"
+                                        data-name="<?= htmlspecialchars($m['material_name'], ENT_QUOTES) ?>">
+                                    <?= htmlspecialchars($m['material_name']) ?>
+                                </option>
+                            <?php } ?>
+                        </select>
+                        <input type="hidden" name="material_name" id="material_name">
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col">
+                            <label class="form-label">Quantity</label>
+                            <input type="number" step="0.01" name="quantity" id="quantity" class="form-control">
                         </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Truck</label>
-                            <select name="truck_id" id="truck_id" class="form-select select2-field">
-                                <option value="">-- Select Truck --</option>
-                                <?php foreach ($trucks as $tr) { ?>
-                                    <option value="<?= (int)$tr['truck_id'] ?>"><?= htmlspecialchars($tr['plate_no']) ?></option>
-                                <?php } ?>
-                            </select>
+                        <div class="col">
+                            <label class="form-label">Unit Price</label>
+                            <input type="number" step="0.01" name="unit_price" id="unit_price" class="form-control" readonly>
                         </div>
+                    </div>
 
-                        <div class="mb-3">
-                            <label class="form-label">Material</label>
-                            <select name="material_id" id="material_id" class="form-select select2-field">
-                                <option value="">-- Select Material --</option>
-                                <?php foreach ($materials as $m) { ?>
-                                    <option value="<?= (int)$m['material_id'] ?>"
-                                            data-unit-price="<?= htmlspecialchars($m['unit_price']) ?>"
-                                            data-name="<?= htmlspecialchars($m['material_name'], ENT_QUOTES) ?>">
-                                        <?= htmlspecialchars($m['material_name']) ?>
-                                    </option>
-                                <?php } ?>
-                            </select>
-                            <input type="hidden" name="material_name" id="material_name">
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select name="status" id="delivery_status" class="form-select">
+                            <option value="pending">Pending</option>
+                            <option value="delivered">Delivered</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </div>
 
-                        <div class="row mb-3">
-                            <div class="col">
-                                <label class="form-label">Quantity</label>
-                                <input type="number" step="0.01" name="quantity" id="quantity" class="form-control">
-                            </div>
-                            <div class="col">
-                                <label class="form-label">Unit Price</label>
-                                <input type="number" step="0.01" name="unit_price" id="unit_price" class="form-control" readonly>
-                            </div>
-                        </div>
+                    <button type="submit" class="btn btn-success" id="delivery-submit-btn">Save Delivery</button>
+                    <button type="button" class="btn btn-secondary d-none" id="delivery-cancel-edit-btn">Cancel</button>
 
-                        <div class="mb-3">
-                            <label class="form-label">Status</label>
-                            <select name="status" id="delivery_status" class="form-select">
-                                <option value="pending">Pending</option>
-                                <option value="posted">Posted</option>
-                                <option value="cancelled">Cancelled</option>
-                            </select>
-                        </div>
-
-                        <button type="submit" class="btn btn-success" id="delivery-submit-btn">Save Delivery</button>
-                        <button type="button" class="btn btn-secondary d-none" id="delivery-cancel-edit-btn">Cancel</button>
-
-                    </form>
-                </div>
+                </form>
             </div>
 
-            <!-- TOTAL CARD -->
-            <div class="card">
+            <!-- TOTAL CARD inside same collapse -->
+            <div class="card border-0 border-top">
                 <div class="card-header">Total</div>
                 <div class="card-body">
                     <div class="mb-3">
@@ -645,6 +670,9 @@ $queryBase = http_build_query([
                 </div>
             </div>
         </div>
+    </div>
+</div>
+
     </div>
 
     <!-- FILTERS + TABLE -->
@@ -697,7 +725,7 @@ $queryBase = http_build_query([
                     <select name="status_filter" class="form-select">
                         <option value="">All</option>
                         <option value="pending"   <?= $statusFilter === 'pending'   ? 'selected' : '' ?>>Pending</option>
-                        <option value="posted"    <?= $statusFilter === 'posted'    ? 'selected' : '' ?>>Posted</option>
+                        <option value="delivered"    <?= $statusFilter === 'delivered'    ? 'selected' : '' ?>>Delivered</option>
                         <option value="cancelled" <?= $statusFilter === 'cancelled' ? 'selected' : '' ?>>Cancelled</option>
                     </select>
                 </div>
