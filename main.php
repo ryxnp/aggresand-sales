@@ -46,6 +46,11 @@ if (!isset($_SESSION['admin_id'])) {
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="js/scripts.js"></script>
-  
-</body>
+
+  <script src="js/company.js"></script>
+  <script src="js/contractor.js"></script>
+  <script src="js/site.js"></script>
+  <script src="js/truck.js"></script>
+
+  </body>
 </html>

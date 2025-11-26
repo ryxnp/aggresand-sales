@@ -1,119 +1,109 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const links = document.querySelectorAll(".sidebar-link");
-  const mainContent = document.getElementById("main-content");
-  const loadingSpinner = document.getElementById("loading-spinner");
+// js/scripts.js
 
-  const pageTitles = {
-    "trans_entry.php": "Transaction Entry",
-    "reports.php": "Reports",
-    "contractor.php": "Contractor Management",
-    "site.php": "Site Management",
-    "materials.php": "Materials",
-    "truck.php": "Truck Information",
-    "company.php": "Company",
-    "accounts.php": "Accounts Settings",
-    "backup.php": "Database Backup",
-  };
+$(function () {
+    const $spinner = $('#loading-spinner');
+    const $content = $('#main-content');
 
-  async function loadPage(page, link) {
-    // Show spinner overlay
-    loadingSpinner.style.display = "flex";
-    loadingSpinner.style.opacity = "1";
-    mainContent.style.opacity = "0.5";
-
-    // Highlight active link
-    links.forEach(l => l.classList.remove("active"));
-    if (link) link.classList.add("active");
-
-    try {
-      const response = await fetch(`loader.php?page=${page}`, { cache: "no-store" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const html = await response.text();
-      mainContent.innerHTML = html;
-      document.title = `Aggresand Dashboard - ${pageTitles[page] || "Dashboard"}`;
-
-      // Update URL hash
-      history.replaceState(null, "", `#${page}`);
-
-      // If Accounts page is loaded, initialize its JS
-      if (page === "accounts.php") {
-        initAccountsPage();
-      }
-
-    } catch (error) {
-      mainContent.innerHTML = `<div class="error-msg">❌ Error loading <b>${page}</b>: ${error.message}</div>`;
-    } finally {
-      // Hide spinner smoothly
-      loadingSpinner.style.opacity = "0";
-      setTimeout(() => {
-        loadingSpinner.style.display = "none";
-      }, 300);
-      mainContent.style.opacity = "1";
+    // Highlight active item in sidebar
+    function setActiveSidebar(page) {
+        $('.sidebar-link').removeClass('active');
+        $('.sidebar-link[data-page="' + page + '"]').addClass('active');
     }
-  }
 
-  links.forEach(link => {
-    link.addEventListener("click", e => {
-      e.preventDefault();
-      const page = link.getAttribute("data-page");
-      loadPage(page, link);
-    });
-  });
+    // Central SPA loader (GLOBAL)
+    function loadPage(page, extraQuery) {
+        $spinner.show();
 
-  // Load page based on URL hash or fallback to default
-  const initialPage = location.hash ? location.hash.substring(1) : "trans_entry.php";
-  const initialLink = document.querySelector(`.sidebar-link[data-page="${initialPage}"]`);
-  if (initialLink) loadPage(initialPage, initialLink);
-
-  // --------------------------
-  // Accounts page JS
-  // --------------------------
-  function initAccountsPage() {
-    const $ = jQuery; // Ensure jQuery is available
-
-    // Handle account creation via AJAX
-    $('#createUserForm').off('submit').on('submit', function(e) {
-      e.preventDefault();
-
-      $.ajax({
-        url: 'pages/accounts.php', // handles POST
-        method: 'POST',
-        data: $(this).serialize() + '&create_user=1',
-        dataType: 'json',
-        success: function(response) {
-          if (response.success) {
-            alert('✅ User account created successfully!');
-            $('#createUserModal').modal('hide');
-            $('#createUserForm')[0].reset();
-            reloadAccountsTable();
-          } else {
-            alert('❌ Error: ' + response.error);
-          }
-        },
-        error: function(xhr) {
-          alert('Request failed: ' + xhr.responseText);
+        let url = 'loader.php?page=' + encodeURIComponent(page);
+        if (extraQuery) {
+            // extraQuery can be '?q=...' or 'q=...'
+            if (extraQuery.charAt(0) === '?') {
+                extraQuery = extraQuery.substring(1);
+            }
+            if (extraQuery.length > 0) {
+                url += '&' + extraQuery;
+            }
         }
-      });
+
+        $.get(url, function (html) {
+            $content.html(html);
+            $spinner.hide();
+
+            setActiveSidebar(page);
+            initPageScripts(page);
+        }).fail(function () {
+            $spinner.hide();
+            $content.html(
+                '<div class="alert alert-danger mt-3">Failed to load page.</div>'
+            );
+        });
+    }
+
+    // Make globally accessible for other JS files (company.js, etc.)
+    window.loadPage = loadPage;
+
+    // Call page-specific initializers
+    function initPageScripts(page) {
+        // Company
+        if (page === 'company.php' &&
+            window.CompanyPage &&
+            typeof window.CompanyPage.init === 'function') {
+            window.CompanyPage.init();
+        }
+
+        // Contractor
+        if (page === 'contractor.php' &&
+            window.ContractorPage &&
+            typeof window.ContractorPage.init === 'function') {
+            window.ContractorPage.init();
+        }
+
+        // Site
+        if (page === 'site.php' &&
+            window.SitePage &&
+            typeof window.SitePage.init === 'function') {
+            window.SitePage.init();
+        }
+
+        // Truck
+        if (page === 'truck.php' &&
+            window.TruckPage &&
+            typeof window.TruckPage.init === 'function') {
+            window.TruckPage.init();
+        }
+
+        // (Later you can add MaterialsPage, AccountsPage, etc.)
+    }
+
+    // Sidebar click navigation
+    $(document).on('click', '.sidebar-link[data-page]', function (e) {
+        const page = $(this).data('page');
+
+        // Logout goes to normal URL
+        if (page === 'logout.php') {
+            window.location.href = 'logout.php';
+            return;
+        }
+
+        e.preventDefault();
+        loadPage(page);
+
+        // Keep browser URL "clean" (e.g., http://aggressand.com/)
+        history.pushState({ page: page }, '', '/');
     });
 
-    // Reload accounts table
-    function reloadAccountsTable() {
-      $.ajax({
-        url: 'pages/accounts.php',
-        method: 'GET',
-        success: function(html) {
-          const newBody = $(html).find('#accountsTable').html();
-          $('#accountsTable').html(newBody);
+    // Handle browser back/forward buttons
+    window.addEventListener('popstate', function (e) {
+        if (e.state && e.state.page) {
+            loadPage(e.state.page);
+        } else {
+            // No page in state: show default welcome
+            $content.html(
+                '<h2>Welcome!</h2><p>Select a module from the sidebar.</p>'
+            );
         }
-      });
-    }
-  }
+    });
+
+    // Initial load – choose any default page you like
+    loadPage('trans_entry.php');
 });
-
-setTimeout(() => {
-        let alertNode = document.querySelector('.alert');
-        if (alertNode) {
-            let alert = new bootstrap.Alert(alertNode);
-            alert.close();
-        }
-    }, 3000);
