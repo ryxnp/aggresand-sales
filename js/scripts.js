@@ -4,6 +4,18 @@ $(function () {
     const $spinner = $('#loading-spinner');
     const $content = $('#main-content');
 
+    const ALLOWED_PAGES = [
+        'trans_entry.php',
+        'reports.php',
+        'contractor.php',
+        'site.php',
+        'materials.php',
+        'truck.php',
+        'company.php',
+        'accounts.php',
+        'backup.php',
+    ];
+
     // Highlight active item in sidebar
     function setActiveSidebar(page) {
         $('.sidebar-link').removeClass('active');
@@ -12,6 +24,10 @@ $(function () {
 
     // Central SPA loader (GLOBAL)
     function loadPage(page, extraQuery) {
+        if (!page || !ALLOWED_PAGES.includes(page)) {
+            page = 'trans_entry.php';
+        }
+
         $spinner.show();
 
         let url = 'loader.php?page=' + encodeURIComponent(page);
@@ -75,6 +91,19 @@ $(function () {
         // (Later you can add MaterialsPage, AccountsPage, etc.)
     }
 
+    // Decide which page to load on initial load, based on URL hash
+    function getInitialPage() {
+        const hash = window.location.hash;   // e.g. "#company.php"
+        if (hash && hash.startsWith('#')) {
+            const page = hash.substring(1);  // "company.php"
+            if (ALLOWED_PAGES.includes(page)) {
+                return page;
+            }
+        }
+        // Default module
+        return 'trans_entry.php';
+    }
+
     // Sidebar click navigation
     $(document).on('click', '.sidebar-link[data-page]', function (e) {
         const page = $(this).data('page');
@@ -88,8 +117,8 @@ $(function () {
         e.preventDefault();
         loadPage(page);
 
-        // Keep browser URL "clean" (e.g., http://aggressand.com/)
-        history.pushState({ page: page }, '', '/');
+        // Keep hash in sync so refresh/redirect knows what to load
+        history.pushState({ page: page }, '', window.location.pathname + '#' + page);
     });
 
     // Handle browser back/forward buttons
@@ -97,13 +126,18 @@ $(function () {
         if (e.state && e.state.page) {
             loadPage(e.state.page);
         } else {
-            // No page in state: show default welcome
-            $content.html(
-                '<h2>Welcome!</h2><p>Select a module from the sidebar.</p>'
-            );
+            const page = getInitialPage();
+            loadPage(page);
         }
     });
 
-    // Initial load – choose any default page you like
-    loadPage('trans_entry.php');
+    // Initial load – respect the hash from PHP redirects (/main.php#company.php)
+    const initialPage = getInitialPage();
+    loadPage(initialPage);
+    history.replaceState({ page: initialPage }, '', window.location.pathname + window.location.hash);
+
+    // Auto-dismiss alerts after 3 seconds
+setTimeout(() => {
+    $('.alert').alert('close');
+}, 3000);
 });
