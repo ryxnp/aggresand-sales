@@ -134,7 +134,7 @@ CREATE TABLE `admin` (
   KEY `edited_by` (`edited_by`),
   CONSTRAINT `admin_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `admin` (`admin_id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `admin_ibfk_2` FOREIGN KEY (`edited_by`) REFERENCES `admin` (`admin_id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -166,7 +166,7 @@ CREATE TABLE `audit_log` (
   PRIMARY KEY (`log_id`),
   KEY `performed_by` (`performed_by`),
   CONSTRAINT `audit_log_ibfk_1` FOREIGN KEY (`performed_by`) REFERENCES `admin` (`admin_id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -203,7 +203,7 @@ CREATE TABLE `company` (
   KEY `edited_by` (`edited_by`),
   CONSTRAINT `company_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `admin` (`admin_id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `company_ibfk_2` FOREIGN KEY (`edited_by`) REFERENCES `admin` (`admin_id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -240,7 +240,7 @@ CREATE TABLE `contractor` (
   KEY `edited_by` (`edited_by`),
   CONSTRAINT `contractor_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `admin` (`admin_id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `contractor_ibfk_2` FOREIGN KEY (`edited_by`) REFERENCES `admin` (`admin_id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -286,7 +286,7 @@ CREATE TABLE `customer` (
   CONSTRAINT `customer_ibfk_3` FOREIGN KEY (`site_id`) REFERENCES `site` (`site_id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `customer_ibfk_4` FOREIGN KEY (`created_by`) REFERENCES `admin` (`admin_id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `customer_ibfk_5` FOREIGN KEY (`edited_by`) REFERENCES `admin` (`admin_id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -331,7 +331,7 @@ CREATE TABLE `delivery` (
   CONSTRAINT `delivery_ibfk_2` FOREIGN KEY (`truck_id`) REFERENCES `truck` (`truck_id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `delivery_ibfk_3` FOREIGN KEY (`created_by`) REFERENCES `admin` (`admin_id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `delivery_ibfk_4` FOREIGN KEY (`edited_by`) REFERENCES `admin` (`admin_id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -362,7 +362,7 @@ CREATE TABLE `materials` (
   `created_by` int DEFAULT NULL,
   `edited_by` int DEFAULT NULL,
   PRIMARY KEY (`material_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -398,7 +398,7 @@ CREATE TABLE `site` (
   KEY `edited_by` (`edited_by`),
   CONSTRAINT `site_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `admin` (`admin_id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `site_ibfk_2` FOREIGN KEY (`edited_by`) REFERENCES `admin` (`admin_id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -435,7 +435,7 @@ CREATE TABLE `truck` (
   KEY `edited_by` (`edited_by`),
   CONSTRAINT `truck_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `admin` (`admin_id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `truck_ibfk_2` FOREIGN KEY (`edited_by`) REFERENCES `admin` (`admin_id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -458,7 +458,7 @@ UNLOCK TABLES;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
 /*!50001 SET character_set_client      = utf8mb4 */;
 /*!50001 SET character_set_results     = utf8mb4 */;
-/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
+/*!50001 SET collation_connection      = utf8mb4_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
 /*!50001 VIEW `active_company` AS select `company`.`company_id` AS `company_id`,`company`.`company_name` AS `company_name`,`company`.`address` AS `address`,`company`.`contact_no` AS `contact_no`,`company`.`email` AS `email`,`company`.`status` AS `status`,`company`.`is_deleted` AS `is_deleted`,`company`.`date_created` AS `date_created`,`company`.`date_edited` AS `date_edited`,`company`.`created_by` AS `created_by`,`company`.`edited_by` AS `edited_by` from `company` where (`company`.`is_deleted` = 0) */;
@@ -476,7 +476,7 @@ UNLOCK TABLES;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
 /*!50001 SET character_set_client      = utf8mb4 */;
 /*!50001 SET character_set_results     = utf8mb4 */;
-/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
+/*!50001 SET collation_connection      = utf8mb4_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
 /*!50001 VIEW `active_customer` AS select `customer`.`customer_id` AS `customer_id`,`customer`.`company_id` AS `company_id`,`customer`.`contractor_id` AS `contractor_id`,`customer`.`site_id` AS `site_id`,`customer`.`customer_name` AS `customer_name`,`customer`.`contact_no` AS `contact_no`,`customer`.`email` AS `email`,`customer`.`address` AS `address`,`customer`.`status` AS `status`,`customer`.`is_deleted` AS `is_deleted`,`customer`.`date_created` AS `date_created`,`customer`.`date_edited` AS `date_edited`,`customer`.`created_by` AS `created_by`,`customer`.`edited_by` AS `edited_by` from `customer` where (`customer`.`is_deleted` = 0) */;
@@ -494,7 +494,7 @@ UNLOCK TABLES;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
 /*!50001 SET character_set_client      = utf8mb4 */;
 /*!50001 SET character_set_results     = utf8mb4 */;
-/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
+/*!50001 SET collation_connection      = utf8mb4_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
 /*!50001 VIEW `active_delivery` AS select `delivery`.`del_id` AS `del_id`,`delivery`.`customer_id` AS `customer_id`,`delivery`.`delivery_date` AS `delivery_date`,`delivery`.`dr_no` AS `dr_no`,`delivery`.`truck_id` AS `truck_id`,`delivery`.`billing_date` AS `billing_date`,`delivery`.`material` AS `material`,`delivery`.`quantity` AS `quantity`,`delivery`.`unit_price` AS `unit_price`,`delivery`.`status` AS `status`,`delivery`.`is_deleted` AS `is_deleted`,`delivery`.`date_created` AS `date_created`,`delivery`.`date_edited` AS `date_edited`,`delivery`.`created_by` AS `created_by`,`delivery`.`edited_by` AS `edited_by` from `delivery` where (`delivery`.`is_deleted` = 0) */;
@@ -512,7 +512,7 @@ UNLOCK TABLES;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
 /*!50001 SET character_set_client      = utf8mb4 */;
 /*!50001 SET character_set_results     = utf8mb4 */;
-/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
+/*!50001 SET collation_connection      = utf8mb4_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
 /*!50001 VIEW `active_truck` AS select `truck`.`truck_id` AS `truck_id`,`truck`.`plate_no` AS `plate_no`,`truck`.`capacity` AS `capacity`,`truck`.`truck_model` AS `truck_model`,`truck`.`status` AS `status`,`truck`.`is_deleted` AS `is_deleted`,`truck`.`date_created` AS `date_created`,`truck`.`date_edited` AS `date_edited`,`truck`.`created_by` AS `created_by`,`truck`.`edited_by` AS `edited_by` from `truck` where (`truck`.`is_deleted` = 0) */;
