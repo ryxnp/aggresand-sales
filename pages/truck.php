@@ -161,7 +161,7 @@ if ($q !== '') {
     $params[':q'] = '%' . $q . '%';
 }
 
-$per_page     = 5;
+$per_page     = 10;
 $current_page = isset($_GET['p']) && ctype_digit($_GET['p']) ? (int)$_GET['p'] : 1;
 if ($current_page < 1) $current_page = 1;
 
@@ -231,7 +231,7 @@ $queryForPagination = http_build_query([
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Truck Model</label>
+                            <label class="form-label">Remarks</label>
                             <input type="text" id="truck_model" name="truck_model" class="form-control">
                         </div>
 
@@ -278,7 +278,7 @@ $queryForPagination = http_build_query([
                                 <th>ID</th>
                                 <th>Plate</th>
                                 <th>Capacity</th>
-                                <th>Model</th>
+                                <th>Remarks</th>
                                 <th>Status</th>
                                 <th>Created</th>
                                 <th width="150">Actions</th>

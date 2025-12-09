@@ -2,24 +2,6 @@
 
 window.TransEntryPage = (() => {
 
-
-    function select2FormatSite(item) {
-    if (!item.id) {
-        return item.text; // default for placeholder
-    }
-
-    const remarks = $(item.element).data('remarks') || '';
-
-    const $container = $(`
-        <div>
-            <div><strong>${item.text}</strong></div>
-            ${remarks ? `<small class="text-muted">${remarks}</small>` : ''}
-        </div>
-    `);
-
-    return $container;
-}
-
     function initSelects() {
         // Make dropdowns searchable using Select2 if available
         if ($.fn.select2) {
@@ -83,6 +65,8 @@ window.TransEntryPage = (() => {
         const deliveryDate= $("#delivery_date");
         const billingDate = $("#billing_date");
         const drNo        = $("#dr_no");
+        const poNumber    = $("#po_number");
+        const terms       = $("#terms");
         const truckSel    = $("#truck_id");
         const materialSel = $("#material_id");
         const materialName= $("#material_name");
@@ -104,6 +88,8 @@ window.TransEntryPage = (() => {
             deliveryDate.val("");
             billingDate.val("");
             drNo.val("");
+            poNumber.val("");
+            terms.val("");
             truckSel.val("").trigger("change");
             materialSel.val("").trigger("change");
             materialName.val("");
@@ -128,24 +114,17 @@ window.TransEntryPage = (() => {
             }
         }
 
-        // When material changes, autofill unit_price and material_name
+        // When material changes, only set hidden material name; price is manual
         materialSel.on("change", function () {
             const opt   = $(this).find("option:selected");
-            const price = parseFloat(opt.data("unit-price")) || 0;
-            const name  = opt.data("name") || opt.text().trim();
+            const name  = opt.text().trim();
 
-            if (!isNaN(price)) {
-                unitPrice.val(price.toFixed(2));
-            } else {
-                unitPrice.val("");
-            }
             materialName.val(name);
-
+            // Do NOT auto-set unit price anymore (manual input)
             updateTotal();
         });
 
         quantity.on("input", updateTotal);
-        // unitPrice is read-only but we still react in case code changes it
         unitPrice.on("input", updateTotal);
 
         resetForm();
@@ -163,22 +142,25 @@ window.TransEntryPage = (() => {
             const qty         = row.data("quantity");
             const price       = row.data("unit-price");
             const stat        = row.data("status");
+            const po          = row.data("po") || "";
+            const termsVal    = row.data("terms") || "";
 
             actionFld.val("update");
             idFld.val(delId);
             form.attr("action", "pages/trans_entry.php");
 
-            // Set customer dropdown
             customerSel.val(String(cid)).trigger("change");
 
             deliveryDate.val(delDate || "");
             billingDate.val(billDate || "");
             drNo.val(dr || "");
+            poNumber.val(po);
+            terms.val(termsVal);
             quantity.val(qty || "");
             unitPrice.val(price || "");
             statusSel.val(stat || "pending");
 
-            // Try to select matching material option by text
+            // Try to select matching material option by its text
             let found = false;
             materialSel.find("option").each(function () {
                 if ($(this).text().trim() === (material || "").trim()) {
@@ -198,6 +180,7 @@ window.TransEntryPage = (() => {
             formTitle.text("Edit Delivery #" + delId);
             cancelBtn.removeClass("d-none");
 
+            $("#deliveryFormCollapse").collapse("show");
             window.scrollTo({ top: 0, behavior: "smooth" });
         });
 
@@ -223,6 +206,26 @@ window.TransEntryPage = (() => {
             if (typeof window.loadPage === "function") {
                 window.loadPage("trans_entry.php", query);
             }
+        });
+    }
+
+    function initCollapseToggles() {
+        // Any button with data-bs-toggle="collapse" and data-bs-target
+        document.querySelectorAll('[data-bs-toggle="collapse"][data-bs-target]').forEach(btn => {
+            const targetSelector = btn.getAttribute('data-bs-target');
+            const target = document.querySelector(targetSelector);
+            if (!target) return;
+
+            const updateLabel = () => {
+                const isShown = target.classList.contains('show');
+                btn.textContent = isShown ? 'Hide form' : 'Show form';
+            };
+
+            // Initial label
+            updateLabel();
+
+            target.addEventListener('shown.bs.collapse', updateLabel);
+            target.addEventListener('hidden.bs.collapse', updateLabel);
         });
     }
 

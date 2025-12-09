@@ -1,5 +1,5 @@
 <header class="app-header navbar navbar-dark bg-warning px-3 d-flex justify-content-between align-items-center">
-  <h1 class="app-title m-0 fw-bold text-dark">WELCOME AGGRESAND</h1>
+  <h1 class="app-title m-0 fw-bold text-dark">WELCOME ALPHASAND</h1>
   
   <div class="d-flex align-items-center">
     <?php if(isset($_SESSION['username'])): ?>

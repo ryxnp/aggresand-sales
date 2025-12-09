@@ -2,7 +2,9 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 
-// reuse same filters as reports.php
+/* ---------------------------------------------------------
+   FETCH FILTERS
+--------------------------------------------------------- */
 $customer_id   = isset($_GET['customer_id']) ? (int)$_GET['customer_id'] : 0;
 $company_id    = isset($_GET['company_id']) ? (int)$_GET['company_id'] : 0;
 $site_id       = isset($_GET['site_id']) ? (int)$_GET['site_id'] : 0;
@@ -14,10 +16,12 @@ $billing_from  = $_GET['billing_from'] ?? '';
 $billing_to    = $_GET['billing_to'] ?? '';
 $search_text   = trim($_GET['q'] ?? '');
 
+/* ---------------------------------------------------------
+   BUILD WHERE CLAUSE
+--------------------------------------------------------- */
 $where  = "d.is_deleted = 0";
 $params = [];
 
-// same where-building as reports.php (simplified – no contractor here)
 if ($customer_id > 0) {
     $where .= " AND c.customer_id = :customer_id";
     $params[':customer_id'] = $customer_id;
@@ -30,15 +34,16 @@ if ($site_id > 0) {
     $where .= " AND c.site_id = :site_id";
     $params[':site_id'] = $site_id;
 }
+
 if ($material_id > 0) {
     $mStmt = $conn->prepare("SELECT material_name FROM materials WHERE material_id = :mid");
     $mStmt->execute([':mid' => $material_id]);
-    $mRow = $mStmt->fetch(PDO::FETCH_ASSOC);
-    if ($mRow) {
+    if ($mRow = $mStmt->fetch(PDO::FETCH_ASSOC)) {
         $where .= " AND d.material = :material_name";
         $params[':material_name'] = $mRow['material_name'];
     }
 }
+
 if ($status_filter !== '') {
     $where .= " AND d.status = :status";
     $params[':status'] = $status_filter;
@@ -71,7 +76,9 @@ if ($search_text !== '') {
     $params[':q'] = '%' . $search_text . '%';
 }
 
-// fetch all matching rows (no pagination)
+/* ---------------------------------------------------------
+   FETCH ALL MATCHING RECORDS
+--------------------------------------------------------- */
 $sql = "
     SELECT
         d.delivery_date,
@@ -80,7 +87,8 @@ $sql = "
         d.material,
         d.quantity,
         d.unit_price,
-        d.status,
+        d.po_number,
+        d.terms,
         c.customer_name,
         co.company_name,
         s.site_name,
@@ -97,235 +105,243 @@ $stmt = $conn->prepare($sql);
 $stmt->execute($params);
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// totals
+/* ---------------------------------------------------------
+   COMPUTE TOTALS
+--------------------------------------------------------- */
 $total_qty = 0;
 $total_amount = 0;
-$total_dr = [];
+$po_list = [];
 
 foreach ($rows as $r) {
-    $total_qty    += (float)$r['quantity'];
+    $total_qty += (float)$r['quantity'];
     $total_amount += (float)$r['quantity'] * (float)$r['unit_price'];
-    if ($r['dr_no'] !== '') {
-        $total_dr[$r['dr_no']] = true;
+
+    if (!empty($r['po_number'])) {
+        $po_list[$r['po_number']] = true;
     }
 }
-$total_dr_count = count($total_dr);
+$po_numbers_display = implode(", ", array_keys($po_list));
 
-// customer name for header
-$customer_name = 'All Customers';
+/* ---------------------------------------------------------
+   FETCH CUSTOMER / COMPANY / SITE INFO
+--------------------------------------------------------- */
+$customer_name = "";
+$company_name = "";
+$site_name = "";
+$terms_display = "";
+
 if ($customer_id > 0) {
-    $cu = $conn->prepare("SELECT customer_name FROM customer WHERE customer_id = :cid");
+    $cu = $conn->prepare("
+        SELECT c.customer_name, co.company_name, s.site_name
+        FROM customer c
+        LEFT JOIN company co ON c.company_id = co.company_id
+        LEFT JOIN site s ON c.site_id = s.site_id
+        WHERE c.customer_id = :cid
+    ");
     $cu->execute([':cid' => $customer_id]);
-    $rowCu = $cu->fetch(PDO::FETCH_ASSOC);
-    if ($rowCu) {
-        $customer_name = $rowCu['customer_name'];
+    if ($info = $cu->fetch(PDO::FETCH_ASSOC)) {
+        $customer_name = $info['company_name']; // You requested Company Name replaces "Customer"
+        $company_name = $info['customer_name'];
+        $site_name = $info['site_name'];
     }
 }
 
+/* ---------------------------------------------------------
+   SOA NUMBER GENERATION
+--------------------------------------------------------- */
+$soa_number = "SOA-" . date("Ymd") . "-" . str_pad(rand(1, 9999), 4, "0", STR_PAD_LEFT);
+
+/* ---------------------------------------------------------
+   HTML OUTPUT
+--------------------------------------------------------- */
 ?>
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <title>Statement of Account</title>
+
 <style>
-    @page {
-        size: A4 portrait;
-        margin: 10mm;
+    @page { size: A4 portrait; margin: 10mm; }
+    body { font-family: Arial, sans-serif; font-size: 11px; margin: 0; }
+
+    .page { width: 190mm; min-height: 277mm; margin: 0 auto; padding: 5mm 5mm 10mm 5mm; box-sizing: border-box; position: relative; }
+    .page-break { page-break-before: always; }
+
+    .header-image { width: 100%; }
+
+    .header-info { margin-top: 5px; font-size: 11px; }
+    .header-info div { margin-bottom: 2px; }
+
+    .page-number { text-align: right; font-size: 11px; margin-bottom: 5px; }
+
+    table.soa-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    table.soa-table th, table.soa-table td {
+        border: 1px solid #000; padding: 4px; font-size: 10px;
     }
-    body {
-        margin: 0;
-        font-family: Arial, sans-serif;
-        font-size: 11px;
-    }
-    .print-page {
-        width: 190mm;
-        min-height: 277mm;
-        margin: 0 auto;
-        padding: 5mm 10mm;
-        box-sizing: border-box;
-    }
-    .page-break {
-        page-break-before: always;
-    }
-    h1, h2, h3, h4, h5 {
-        margin: 0;
-        padding: 0;
-    }
-    .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 8px;
-    }
-    .company-info {
-        font-size: 10px;
-    }
-    .statement-title {
-        text-align: right;
-        font-size: 12px;
-    }
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 10px;
-    }
-    th, td {
-        border: 1px solid #000;
-        padding: 3px 4px;
-    }
-    th {
-        background: #f0f0f0;
-        text-align: center;
-    }
-    td.text-right {
-        text-align: right;
-    }
-    td.text-center {
-        text-align: center;
-    }
-    td.text-left {
-        text-align: left;
-    }
-    .totals-row td {
-        font-weight: bold;
-    }
-    .footer-signatures {
-        margin-top: 20px;
-        font-size: 10px;
-    }
-    .footer-signatures td {
-        border: none;
-        padding: 10px 4px 0;
-    }
+    table.soa-table th { background: #f0f0f0; text-align: center; }
+
+    .totals-section { margin-top: 15px; font-size: 11px; }
+    .totals-section div { margin-bottom: 3px; }
+
+    .footer { position: absolute; bottom: 10mm; left: 0; width: 100%; }
 </style>
 </head>
 <body>
 
 <?php
-$rowsPerPage = 25; // adjust until it perfectly fits one A4 page visually
+$rowsPerPage = 22;
 $count = 0;
 $page = 0;
 
+function print_header_block($header_image, $soa_number, $customer_name, $company_name, $site_name, $billing_from, $billing_to, $po_numbers_display, $terms_display, $page) {
+    ?>
+
+    <img src="<?= $header_image ?>" class="header-image">
+
+    <div class="page-number">Statement of Account | Page <?= $page ?></div>
+
+    <div class="header-info">
+        <!-- SOA DETAILS TABLE -->
+<table style="width:100%; font-size:11px; border-collapse:collapse; margin-top:5px;">
+    <tr>
+        <td>
+            <strong>Company Name:</strong> <?= htmlspecialchars($customer_name) ?>
+        </td>
+        <td>
+            <strong>Statement of Account No:</strong> <?= htmlspecialchars($soa_number) ?>
+        </td>
+        <td>
+            <strong>Billing Date:</strong> <?= htmlspecialchars($billing_from ?: date("m/d/Y")) ?>
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+            <strong>Attention To:</strong> •
+        </td>
+        <td>
+            <strong>PO Number:</strong> <?= htmlspecialchars($po_numbers_display) ?>
+        </td>
+        <td>
+            <strong> </strong>
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+            <strong>Project Site:</strong> <?= htmlspecialchars($site_name) ?>
+        </td>
+        <td>
+            <strong>Date:</strong> <?= date("m/d/Y") ?>
+        </td>
+        <td>
+            <strong> </strong>
+        </td>
+    </tr>
+</table>
+
+    </div>
+
+    <?php
+}
+
 function print_table_header() {
-    echo '<table>';
-    echo '<thead><tr>
-        <th>Date</th>
-        <th>DR No.</th>
-        <th>Plate No.</th>
-        <th>Material</th>
-        <th>Quantity</th>
-        <th>Price</th>
-        <th>Amount</th>
-        <th>Remarks</th>
-    </tr></thead><tbody>';
+    echo '
+    <table class="soa-table">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>DR No.</th>
+            <th>Plate No.</th>
+            <th>Material</th>
+            <th>Qty</th>
+            <th>U.Price</th>
+            <th>Amount</th>
+        </tr>
+    </thead>
+    <tbody>';
+}
+
+$header_image = "../assets/header.png";
+
+// Extract terms from ANY delivery (latest non-empty)
+foreach ($rows as $r) {
+    if (!empty($r['terms'])) {
+        $terms_display = $r['terms'];
+        break;
+    }
 }
 
 foreach ($rows as $row) {
-    if ($count % $rowsPerPage === 0) {
-        if ($count > 0) {
-            // close previous page
-            echo '</tbody></table>';
-            echo '</div>'; // .print-page
-            echo '<div class="print-page page-break">';
-        } else {
-            echo '<div class="print-page">';
-        }
 
+    if ($count % $rowsPerPage === 0) {
         $page++;
 
-        // HEADER PER PAGE
-        ?>
-        <div class="header">
-            <div class="company-info">
-                <strong>AGGRESAND Quarrying Inc.</strong><br>
-                <!-- You can replace this block with real address / contact -->
-                Brgy. Manuali, Bacolor, Pampanga<br>
-                Tel. No.: 0000-000-0000
-            </div>
-            <div class="statement-title">
-                <strong>STATEMENT OF ACCOUNT</strong><br>
-                <small>Date: <?= date('d-M-Y') ?></small><br>
-                <small>Page: <?= $page ?></small>
-            </div>
-        </div>
+        if ($count > 0) {
+            echo "</tbody></table></div><div class='page page-break'>";
+        } else {
+            echo "<div class='page'>";
+        }
 
-        <div style="margin-bottom:8px;font-size:10px;">
-            <strong>Customer:</strong> <?= htmlspecialchars($customer_name) ?><br>
-            <?php if ($billing_from || $billing_to): ?>
-                <strong>Billing Date:</strong>
-                <?= $billing_from ?: 'Any' ?> to <?= $billing_to ?: 'Any' ?><br>
-            <?php endif; ?>
-        </div>
-        <?php
+        print_header_block(
+            $header_image,
+            $soa_number,
+            $customer_name,
+            $company_name,
+            $site_name,
+            $billing_from,
+            $billing_to,
+            $po_numbers_display,
+            $terms_display,
+            $page
+        );
 
         print_table_header();
     }
 
     $amount = (float)$row['quantity'] * (float)$row['unit_price'];
 
-    echo '<tr>';
-    echo '<td class="text-center">' . htmlspecialchars($row['delivery_date']) . '</td>';
-    echo '<td class="text-center">' . htmlspecialchars($row['dr_no']) . '</td>';
-    echo '<td class="text-center">' . htmlspecialchars($row['plate_no']) . '</td>';
-    echo '<td class="text-left">'   . htmlspecialchars($row['material']) . '</td>';
-    echo '<td class="text-right">'  . number_format((float)$row['quantity'], 3) . '</td>';
-    echo '<td class="text-right">'  . number_format((float)$row['unit_price'], 2) . '</td>';
-    echo '<td class="text-right">'  . number_format($amount, 2) . '</td>';
-    echo '<td class="text-left"></td>';
-    echo '</tr>';
+    echo "<tr>
+            <td>{$row['delivery_date']}</td>
+            <td>{$row['dr_no']}</td>
+            <td>{$row['plate_no']}</td>
+            <td>{$row['material']}</td>
+            <td style='text-align:right'>" . number_format($row['quantity'], 2) . "</td>
+            <td style='text-align:right'>" . number_format($row['unit_price'], 2) . "</td>
+            <td style='text-align:right'>" . number_format($amount, 2) . "</td>
+          </tr>";
 
     $count++;
 }
 
 if ($count === 0) {
-    // still need one page
-    echo '<div class="print-page">';
-    ?>
-    <div class="header">
-        <div class="company-info">
-            <strong>AGGRESAND Quarrying Inc.</strong><br>
-        </div>
-        <div class="statement-title">
-            <strong>STATEMENT OF ACCOUNT</strong><br>
-            <small>Date: <?= date('d-M-Y') ?></small>
-        </div>
-    </div>
-    <p>No records found.</p>
-    </div>
-    <?php
+    echo "<div class='page'>";
+    print_header_block($header_image, $soa_number, $customer_name, $company_name, $site_name, $billing_from, $billing_to, $po_numbers_display, $terms_display, 1);
+    echo "<p>No records found.</p></div>";
 } else {
-    // close last table + page
-    echo '</tbody></table>';
+    echo "</tbody></table>";
 
-    // TOTALS ON LAST PAGE
-    ?>
-    <table style="margin-top:10px;">
-        <tr class="totals-row">
-            <td style="border:none;" colspan="3"><strong>Sub-Total / Grand Total:</strong></td>
-            <td style="border:none;" class="text-right">Qty</td>
-            <td class="text-right"><?= number_format($total_qty, 3) ?></td>
-            <td class="text-right">Amount</td>
-            <td class="text-right"><?= number_format($total_amount, 2) ?></td>
-            <td style="border:none;"></td>
-        </tr>
-        <tr>
-            <td style="border:none;" colspan="3"><strong>Total DR No.:</strong></td>
-            <td style="border:none;" colspan="5"><?= (int)$total_dr_count ?></td>
-        </tr>
-    </table>
+    echo "
+    <div class='totals-section'>
+        <div><strong>Total Quantity:</strong> " . number_format($total_qty, 2) . "</div>
+        <div><strong>Total Amount:</strong> ₱" . number_format($total_amount, 2) . "</div>
+        <div><strong>Total DR Count:</strong> " . count($po_list) . "</div>
+    </div>";
 
-    <table class="footer-signatures">
-        <tr>
-            <td><strong>Prepared By:</strong><br><br>__________________________<br><strong>Kristine Hanna Argao</strong><br><small>Sales &amp; Purchasing Officer</small></td>
-            <td><strong>Checked By:</strong><br><br>__________________________<br><strong>Ma. Thricia Agustin</strong><br><small>?</small></td>
-            <td><strong>Approved By:</strong><br><br>__________________________<br><strong>Analyn Buenviaje</strong><br><small>General Manager</small></td></td>
-            <td><strong>Date Submitted:</strong><br><br>__________________________<br><strong>Recieved By:</strong><br><small>(Signature over Printed Name)</small></td>
-        </tr>
-    </table>
+    echo "
+    <div class='footer'>
+        <table style='width:100%; font-size:11px; border:none;'>
+            <tr>
+                <td><strong>Prepared By:</strong><br><br>__________________________<br>{$_SESSION['username']}</td>
+                <td><strong>Checked By:</strong><br><br>__________________________</td>
+                <td><strong>Approved By:</strong><br><br>__________________________</td>
+                <td><strong>Date Submitted:</strong><br><br>__________________________</td>
+            </tr>
+        </table>
+    </div>
 
-    </div><!-- .print-page -->
-    <?php
+    </div>";
 }
 ?>
 

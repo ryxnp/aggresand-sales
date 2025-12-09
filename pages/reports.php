@@ -130,7 +130,7 @@ if ($search_text !== '') {
 }
 
 // ---------- PAGINATION ----------
-$per_page     = 25;
+$per_page     = 10;
 $current_page = isset($_GET['p']) && ctype_digit($_GET['p']) ? (int)$_GET['p'] : 1;
 if ($current_page < 1) $current_page = 1;
 
