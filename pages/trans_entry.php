@@ -517,13 +517,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
    LOOKUP DATA
    ============================================================ */
 
-// SOA list (Draft only)
+// SOA list
 $soas = $conn->query("
-    SELECT soa_id, soa_no, status
-    FROM statement_of_account
-    WHERE is_deleted = 0
-      AND status IN ('draft','finalized')
-    ORDER BY date_created DESC, soa_id DESC
+    SELECT
+        s.soa_id,
+        s.soa_no,
+        s.status,
+        co.company_name,
+        si.site_name
+    FROM statement_of_account s
+    JOIN company co ON s.company_id = co.company_id
+    JOIN site si ON s.site_id = si.site_id
+    WHERE s.is_deleted = 0
+      AND s.status IN ('draft','finalized')
+    ORDER BY s.date_created DESC, s.soa_id DESC
 ")->fetchAll(PDO::FETCH_ASSOC);
 
 // companies
@@ -754,6 +761,8 @@ $queryBase = http_build_query([
                         <option value="<?= (int)$s['soa_id'] ?>"
                             <?= ($soa_id == $s['soa_id']) ? 'selected' : '' ?>>
                             <?= htmlspecialchars($s['soa_no']) ?>
+                            - <?= htmlspecialchars($s['company_name']) ?>
+                            - <?= htmlspecialchars($s['site_name']) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>

@@ -221,7 +221,7 @@ $queryForPagination = http_build_query([
 ?>
 
 <div class="container-fluid">
-    <h2 class="mb-4">Reports / Statement of Account</h2>
+    <h2 class="mb-4">Reports (All Transactions)</h2>
 
     <div class="row mb-3">
         <!-- ADVANCED SEARCH -->
@@ -362,7 +362,7 @@ $queryForPagination = http_build_query([
                 </div>
             </div>
 
-            <div class="card">
+            <!-- <div class="card">
                 <div class="card-header">
                     Actions
                 </div>
@@ -378,7 +378,7 @@ $queryForPagination = http_build_query([
                         Extract (CSV)
                     </button>
                 </div>
-            </div>
+            </div> -->
         </div>
     </div>
 
