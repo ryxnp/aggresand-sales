@@ -1061,71 +1061,56 @@ $queryBase = http_build_query([
     <!-- FILTERS + TABLE -->
     <div class="card">
         <div class="card-header">
-            <form class="row g-2 align-items-end trans-filter-form" method="GET" action="">
-                <input type="hidden" name="soa_id" value="<?= (int)$soa_id ?>">
+            <form class="row g-2 align-items-end trans-filter-form flex-nowrap" method="GET" action="">
+    <input type="hidden" name="soa_id" value="<?= (int)$soa_id ?>">
 
-                <div class="col-md-2">
-                    <label class="form-label">Delivery From</label>
-                    <input type="date" name="del_date_from" class="form-control" value="<?= htmlspecialchars($dateFrom) ?>">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Delivery To</label>
-                    <input type="date" name="del_date_to" class="form-control" value="<?= htmlspecialchars($dateTo) ?>">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Company</label>
-                    <select name="company_filter" class="form-select">
-                        <option value="">All</option>
-                        <?php foreach ($companies as $co): ?>
-                            <option value="<?= (int)$co['company_id'] ?>" <?= $companyFilter == (int)$co['company_id'] ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($co['company_name']) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Site</label>
-                    <select name="site_filter" class="form-select">
-                        <option value="">All</option>
-                        <?php foreach ($sites as $st): ?>
-                            <option value="<?= (int)$st['site_id'] ?>" <?= $siteFilter == (int)$st['site_id'] ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($st['site_name']) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Material</label>
-                    <select name="material_filter" class="form-select">
-                        <option value="">All</option>
-                        <?php foreach ($materials as $m): ?>
-                            <option value="<?= htmlspecialchars($m['material_name']) ?>" <?= $materialFilter === $m['material_name'] ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($m['material_name']) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Status</label>
-                    <select name="status_filter" class="form-select">
-                        <option value="">All</option>
-                        <option value="pending"   <?= $statusFilter === 'pending' ? 'selected' : '' ?>>Pending</option>
-                        <option value="delivered" <?= $statusFilter === 'delivered' ? 'selected' : '' ?>>Delivered</option>
-                        <option value="cancelled" <?= $statusFilter === 'cancelled' ? 'selected' : '' ?>>Cancelled</option>
-                    </select>
-                </div>
+    <div class="col-lg-2 col-md-3 col-sm-6">
+        <label class="form-label">Delivery From</label>
+        <input type="date" name="del_date_from" class="form-control"
+               value="<?= htmlspecialchars($dateFrom) ?>">
+    </div>
 
-                <div class="col-md-3 mt-2">
-                    <label class="form-label">Search</label>
-                    <input type="text" name="q" class="form-control"
-                           value="<?= htmlspecialchars($q) ?>"
-                           placeholder="DR / Customer / Company / Truck / Material / PO">
-                </div>
+    <div class="col-lg-2 col-md-3 col-sm-6">
+        <label class="form-label">Delivery To</label>
+        <input type="date" name="del_date_to" class="form-control"
+               value="<?= htmlspecialchars($dateTo) ?>">
+    </div>
 
-                <div class="col-md-2 mt-2">
-                    <button class="btn btn-primary w-100">Apply Filters</button>
-                </div>
-            </form>
+    <div class="col-lg-2 col-md-3 col-sm-6">
+        <label class="form-label">Material</label>
+        <select name="material_filter" class="form-select">
+            <option value="">All</option>
+            <?php foreach ($materials as $m): ?>
+                <option value="<?= htmlspecialchars($m['material_name']) ?>"
+                    <?= $materialFilter === $m['material_name'] ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($m['material_name']) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+    </div>
+
+    <div class="col-lg-2 col-md-3 col-sm-6">
+        <label class="form-label">Status</label>
+        <select name="status_filter" class="form-select">
+            <option value="">All</option>
+            <option value="pending"   <?= $statusFilter === 'pending' ? 'selected' : '' ?>>Pending</option>
+            <option value="delivered" <?= $statusFilter === 'delivered' ? 'selected' : '' ?>>Delivered</option>
+            <option value="cancelled" <?= $statusFilter === 'cancelled' ? 'selected' : '' ?>>Cancelled</option>
+        </select>
+    </div>
+
+    <div class="col-lg-3 col-md-6 col-sm-12">
+        <label class="form-label">Search</label>
+        <input type="text" name="q" class="form-control"
+               value="<?= htmlspecialchars($q) ?>"
+               placeholder="DR / Customer / Company / Truck / Material / PO">
+    </div>
+
+    <div class="col-lg-1 col-md-3 col-sm-6">
+        <button class="btn btn-primary w-100">Apply</button>
+    </div>
+</form>
+
         </div>
 
         <div class="card-body table-responsive">

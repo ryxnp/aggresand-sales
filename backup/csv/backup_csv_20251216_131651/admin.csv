@@ -1,0 +1,3 @@
+admin_id,username,email,role,password,last_login,status,date_created,date_edited,created_by,edited_by
+1,"Ryan Paul C. Rodanilla",admin@gmail.com,Admin,$2y$12$dfmh98n744XaTucecho/7OVIIRUKKunieWJvp/2L4QAXZP2m6d8ye,"2025-12-16 12:49:28",Active,"2025-11-26 14:04:46","2025-12-16 12:49:28",1,1
+2,"Test User",testuser@gmail.com,Admin,$2y$12$E5hw4pxrq6fjRBzhcajCluVOpt6gXs0XffLtcabppfFln/yNHvs7G,,Active,"2025-12-16 12:32:41",,1,
