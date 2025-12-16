@@ -1,4 +1,17 @@
-- Fix Contractor Update button. Doesn't display records + All fields are required error.
-- Static HTML upon data entry. 
+Setup Task Scheduler
 
-- Redo all crud processes.
+> Open Task Scheduler
+> Create Basic Task
+> Name: Aggresand Daily DB Backup
+> Trigger: Daily
+> Time: e.g. 02:00 AM
+> Action: Start a Program
+
+Program/script
+> C:\php\php.exe
+
+Add arguments
+> C:\Users\{user}\Desktop\aggresand-sales\scripts\daily_backup.php
+
+Start in
+> C:\Users\{user}\Desktop\aggresand-sales\scripts

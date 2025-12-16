@@ -106,6 +106,12 @@ $(function () {
             window.ReportsPage.init();
         }
 
+        // SOA
+        if (page === 'soa.php' &&
+            window.SoaPage &&
+            typeof window.SoaPage.init === 'function') {
+        window.SoaPage.init();
+        }
 
         // (Later you can add MaterialsPage, AccountsPage, etc.)
     }

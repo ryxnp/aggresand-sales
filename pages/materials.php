@@ -226,10 +226,10 @@ $queryForPagination = http_build_query([
                             <input type="text" name="material_name" id="material_name" class="form-control" required>
                         </div>
 
-                        <div class="mb-3">
+                        <!-- <div class="mb-3">
                             <label class="form-label">Unit Price</label>
                             <input type="number" step="0.01" name="unit_price" id="unit_price" class="form-control" required>
-                        </div>
+                        </div> -->
 
                         <div class="mb-3">
                             <label class="form-label">Status</label>
@@ -278,7 +278,7 @@ $queryForPagination = http_build_query([
                             <tr>
                                 <th>ID</th>
                                 <th>Name</th>
-                                <th>Unit Price</th>
+                                <!-- <th>Unit Price</th> -->
                                 <th>Status</th>
                                 <th>Created</th>
                                 <th width="150">Actions</th>
@@ -292,7 +292,7 @@ $queryForPagination = http_build_query([
                                 <tr>
                                     <td><?= (int)$r['material_id'] ?></td>
                                     <td class="col-name"><?= htmlspecialchars($r['material_name']) ?></td>
-                                    <td class="col-price"><?= number_format((float)$r['unit_price'], 2) ?></td>
+                                    <!-- <td class="col-price"><?= number_format((float)$r['unit_price'], 2) ?></td> -->
                                     <td class="col-status"><?= htmlspecialchars($r['status']) ?></td>
                                     <td><?= htmlspecialchars($r['date_created']) ?></td>
                                     <td class="text-nowrap">

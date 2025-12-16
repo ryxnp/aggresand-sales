@@ -37,3 +37,4 @@ if (in_array($page, $allowedPages, true)) {
     http_response_code(404);
     echo '<div class="alert alert-danger">Error: Page not found or access denied.</div>';
 }
+

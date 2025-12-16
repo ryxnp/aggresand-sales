@@ -231,6 +231,7 @@ window.TransEntryPage = (() => {
 
     function init() {
         initSelects();
+        initSOABar();
         initCustomerForm();
         initDeliveryForm();
         initFiltersAndPagination();
@@ -259,5 +260,90 @@ function initCollapseToggles() {
         target.addEventListener('shown.bs.collapse', updateLabel);
         target.addEventListener('hidden.bs.collapse', updateLabel);
     });
+}
+
+function initSOABar() {
+  const $soaSelect = $('#soa_select');
+  const $soaIdHidden = $('#soa_id');
+  const $badge = $('#soa_status_badge');
+  const $btnFinalize = $('#btn_finalize_soa');
+  const $btnPrint = $('#btn_print_soa');
+  const $btnCreate = $('#btn_open_create_soa');
+
+  function updateHash(soaId) {
+    if (!soaId) {
+      history.replaceState(
+        { page: 'trans_entry.php' },
+        '',
+        '#trans_entry.php'
+      );
+    } else {
+      history.replaceState(
+        { page: 'trans_entry.php', soa_id: soaId },
+        '',
+        '#trans_entry.php?soa_id=' + encodeURIComponent(soaId)
+      );
+    }
+  }
+
+  function setSOAState(soaId) {
+  if (!soaId) {
+    $soaIdHidden.val('');
+    disableDeliveryUI(true);
+    return;
+  }
+
+    $soaIdHidden.val(soaId);
+    disableDeliveryUI(false);
+  }
+
+  function disableDeliveryUI(disabled) {
+    const $form = $('#delivery-form');
+    $form.find('input,select,button').prop('disabled', disabled);
+
+    $('#deliveryFormCollapse')
+      .closest('.card')
+      .find('[data-bs-toggle="collapse"]')
+      .prop('disabled', false);
+
+    $('#delivery-cancel-edit-btn').prop('disabled', false);
+
+    $('#delivery-form-title').text(
+      disabled ? 'Delivery (Select SOA first)' : 'Delivery'
+    );
+  }
+
+  // 🔁 SOA SELECT CHANGE
+  $soaSelect.on('change', function () {
+    const soaId = this.value || '';
+
+    setSOAState(soaId);
+    updateHash(soaId);
+
+    if (typeof window.loadPage === 'function') {
+      window.loadPage(
+        'trans_entry.php',
+        soaId ? 'soa_id=' + encodeURIComponent(soaId) : ''
+      );
+    }
+  });
+
+  // INITIAL LOAD
+  setSOAState($soaSelect.val());
+
+  // ================= FINALIZE BUTTON HANDLER =================
+$btnFinalize.on('click', function () {
+    if ($(this).prop('disabled')) return;
+
+    if (!confirm('Finalize this SOA?\n\nThis will lock all deliveries and cannot be undone.')) {
+        return;
+    }
+
+    // prevent double submit
+    $(this).prop('disabled', true);
+
+    // submit the parent form
+    $(this).closest('form')[0].submit();
+});
 }
 
