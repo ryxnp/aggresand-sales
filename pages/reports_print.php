@@ -83,158 +83,167 @@ $soa_number   = $soa['soa_no'];
 $company_name = $soa['company_name'];
 $site_name    = $soa['site_name'];
 $terms_display = $soa['terms'];
-
 $header_image = "../assets/header.png";
+
 ?>
 <!DOCTYPE html>
 <html>
+
 <head>
-<meta charset="utf-8">
-<title>Statement of Account <?= htmlspecialchars($soa_number) ?></title>
-
-<style>
-@page { size: A4 portrait; margin: 10mm; }
-body { font-family: Arial, sans-serif; font-size: 11px; margin: 0; }
-
-.page { width: 190mm; min-height: 277mm; margin: 0 auto; padding: 5mm 5mm 10mm 5mm; box-sizing: border-box; position: relative; }
-.page-break { page-break-before: always; }
-
-.header-image { width: 100%; }
-
-.page-number { text-align: right; font-size: 11px; margin-bottom: 5px; }
-
-table.soa-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-table.soa-table th, table.soa-table td {
-    border: 1px solid #000; padding: 4px; font-size: 10px;
-}
-table.soa-table th { background: #f0f0f0; text-align: center; }
-
-.totals-section { margin-top: 15px; font-size: 11px; }
-
-.footer { position: absolute; bottom: 10mm; left: 0; width: 100%; }
-</style>
+    <meta charset="utf-8">
+    <title>Statement of Account <?= htmlspecialchars($soa_number) ?></title>  
+    <style>
+        @import url('../css/print.css');
+    </style>  
 </head>
+
 <body>
+    <div class="print-date">
+        <?= date('d–F–Y') ?>
+    </div>
+    <?php
+    $rowsPerPage = 22;
+    $count = 0;
+    $page = 0;
 
-<?php
-$rowsPerPage = 22;
-$count = 0;
-$page = 0;
+    function print_header_block($header_image, $soa_number, $company_name, $site_name, $po_numbers_display, $terms_display, $page)
+    {
+    ?>
+        <img src="<?= $header_image ?>" class="header-image">
 
-function print_header_block($header_image, $soa_number, $company_name, $site_name, $po_numbers_display, $terms_display, $page) {
-?>
-<img src="<?= $header_image ?>" class="header-image">
+        <table class="soa-header-table">
+            <tr>
+                <td><strong>Company Name:</strong> <?= htmlspecialchars($company_name) ?></td>
+                <td><strong>Statement of Account No:</strong> <?= htmlspecialchars($soa_number) ?></td>
+            </tr>
+            <tr>
+                <td><strong>Project Site:</strong> <?= htmlspecialchars($site_name) ?></td>
+                <td><strong>PO Number:</strong> *</td>
 
-<div class="page-number">Statement of Account | Page <?= $page ?></div>
+            </tr>
+            <tr>
+                <td><strong>Billing Date:</strong> <?= date("m/d/Y") ?></td>
+            </tr>
+        </table>
+    <?php
+    }
 
-<table style="width:100%; font-size:11px; border-collapse:collapse; margin-top:5px;">
-<tr>
-    <td><strong>Company Name:</strong> <?= htmlspecialchars($company_name) ?></td>
-    <td><strong>SOA No:</strong> <?= htmlspecialchars($soa_number) ?></td>
-    <td><strong>Date:</strong> <?= date("m/d/Y") ?></td>
-</tr>
-<tr>
-    <td><strong>Project Site:</strong> <?= htmlspecialchars($site_name) ?></td>
-    <td><strong>PO Number:</strong> <?= htmlspecialchars($po_numbers_display) ?></td>
-    <td>
-        <strong>Terms of Payment:</strong>
-        <?php if ($terms_display === '*'): ?>
-            <span style="font-weight:bold;">
-                NO CASH PAYMENT WILL BE ACCEPTED
-            </span>
-        <?php else: ?>
-            <?= htmlspecialchars($terms_display) ?> Days
-        <?php endif; ?>
-    </td>
-</tr>
-</table>
-<?php
-}
-
-function print_table_header() {
-    echo '
+    function print_table_header()
+    {
+        echo '
     <table class="soa-table">
-    <thead>
+    <thead class="soa-header">
         <tr>
             <th>Date</th>
             <th>DR No.</th>
             <th>Plate No.</th>
-            <th>Material</th>
-            <th>Qty</th>
-            <th>U.Price</th>
+            <th>Materials</th>
+            <th>Quantity</th>
+            <th>Price</th>
             <th>Amount</th>
         </tr>
     </thead>
     <tbody>';
-}
-
-foreach ($rows as $row) {
-
-    if ($count % $rowsPerPage === 0) {
-        $page++;
-        if ($count > 0) {
-            echo "</tbody></table></div><div class='page page-break'>";
-        } else {
-            echo "<div class='page'>";
-        }
-
-        print_header_block(
-            $header_image,
-            $soa_number,
-            $company_name,
-            $site_name,
-            $po_numbers_display,
-            $terms_display,
-            $page
-        );
-
-        print_table_header();
     }
 
-    $amount = (float)$row['quantity'] * (float)$row['unit_price'];
+    foreach ($rows as $row) {
 
-    echo "<tr>
+        if ($count % $rowsPerPage === 0) {
+            $page++;
+            if ($count > 0) {
+                echo "</tbody></table></div><div class='page page-break'>";
+            } else {
+                echo "<div class='page'>";
+            }
+
+            print_header_block(
+                $header_image,
+                $soa_number,
+                $company_name,
+                $site_name,
+                $po_numbers_display,
+                $terms_display,
+                $page
+            );
+
+            print_table_header();
+        }
+
+        $amount = (float)$row['quantity'] * (float)$row['unit_price'];
+
+        echo "<tr>
         <td>{$row['delivery_date']}</td>
         <td>{$row['dr_no']}</td>
         <td>{$row['plate_no']}</td>
         <td>{$row['material']}</td>
-        <td style='text-align:right'>".number_format($row['quantity'],2)."</td>
-        <td style='text-align:right'>".number_format($row['unit_price'],2)."</td>
-        <td style='text-align:right'>".number_format($amount,2)."</td>
+        <td style='text-align:right'>" . number_format($row['quantity'], 2) . "</td>
+        <td style='text-align:right'>" . number_format($row['unit_price'], 2) . "</td>
+        <td style='text-align:right'>" . number_format($amount, 2) . "</td>
     </tr>";
 
-    $count++;
-}
+        $count++;
+    }
 
-if ($count === 0) {
-    echo "<div class='page'>";
-    print_header_block($header_image, $soa_number, $company_name, $site_name, '', $terms_display, 1);
-    echo "<p>No records found.</p></div>";
-} else {
-    echo "</tbody></table>";
+    if ($count === 0) {
+        echo "<div class='page'>";
+        print_header_block($header_image, $soa_number, $company_name, $site_name, '', $terms_display, 1);
+        echo "<p>No records found.</p></div>";
+    } else {
+        echo "</tbody></table>";
 
-    echo "
+        echo "
     <div class='totals-section'>
-        <div><strong>Total Quantity:</strong> ".number_format($total_qty,2)."</div>
-        <div><strong>Total Amount:</strong> ₱".number_format($total_amount,2)."</div>
-        <div><strong>Total DR Count:</strong> ".count($rows)."</div>
+        <div><strong>Total Quantity:</strong> " . number_format($total_qty, 2) . "</div>
+        <div><strong>Total Amount:</strong> ₱" . number_format($total_amount, 2) . "</div>
+        <div><strong>Total DR Count:</strong> " . count($rows) . "</div>
+
+        <div class='terms-block'>
+            <strong>Terms of Payment:</strong><br>
+            <?php if ($terms_display === '*'): ?>
+                <span class='terms-highlight'>
+                    NO CASH PAYMENT WILL BE ACCEPTED
+                </span>
+            <?php else: ?>
+                <?= htmlspecialchars($terms_display) ?> 
+            <?php endif; ?>
+        </div>
+</div>
     </div>";
 
-    echo "
+        echo "
     <div class='footer'>
-        <table style='width:100%; font-size:11px;'>
+        <table class='footer-table'>
             <tr>
-                <td><strong>Prepared By:</strong><br><br>__________________________<br>{$_SESSION['username']}</td>
-                <td><strong>Checked By:</strong><br><br>__________________________</td>
-                <td><strong>Approved By:</strong><br><br>__________________________</td>
-                <td><strong>Date Submitted:</strong><br><br>__________________________</td>
+                <td>
+                    <strong>Prepared By:</strong><br><br><br>
+                    <span class='sig-name'>{$_SESSION['username']}</span><br>
+                    <span class='sig-role'>Sales and Operation Officer</span>
+                </td>
+                <td>
+                    <strong>Checked By:</strong><br><br><br>
+                    <span class='sig-name'>Ma. Christa Agustin</span><br>
+                    <span class='sig-role'>Accounting & Admin Officer</span>
+                </td>
+                <td>
+                    <strong>Approved By:</strong><br><br><br>
+                    <span class='sig-name'>Analyn Buenviaje</span><br>
+                    <span class='sig-role'>General Manager</span>
+                </td>
+                <td>
+                    <strong>Received By:</strong><br><br><br>
+                    <span class='sig-name'>Customer's Name</span><br>
+                    <span class='sig-role'>&nbsp;</span>
+                </td>
             </tr>
         </table>
     </div>
     </div>";
-}
-?>
+    }
+    ?>
 
-<script>window.print();</script>
+    <script>
+        window.print();
+    </script>
 </body>
+
 </html>

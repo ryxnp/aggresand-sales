@@ -67,129 +67,126 @@ function printSOA(PDO $conn, array $soa, bool $pageBreak)
     }
 
     if ($pageBreak) echo '<div class="page-break"></div>';
-    ?>
+?>
     <div class="page">
         <img src="../assets/header.png" class="header-image">
 
-        <table class="header-table">
+        <table class="soa-header-table">
             <tr>
-                <td><strong>Company:</strong> <?= htmlspecialchars($soa['company_name']) ?></td>
-                <td><strong>SOA No:</strong> <?= htmlspecialchars($soa['soa_no']) ?></td>
-                <td><strong>Billing Date:</strong> <?= htmlspecialchars($soa['billing_date']) ?></td>
+                <td><strong>Company Name:</strong> <?= htmlspecialchars($soa['company_name']) ?></td>
+                <td><strong>Statement of Account No:</strong> <?= htmlspecialchars($soa['soa_no']) ?></td>
             </tr>
             <tr>
-                <td><strong>Site:</strong> <?= htmlspecialchars($soa['site_name']) ?></td>
-                <td colspan="2">
-                    <strong>Terms:</strong>
-                    <?php if ($soa['terms'] === '*'): ?>
-                        <strong>No Cash Payment will be accepted</strong>
-                    <?php else: ?>
-                        <?= htmlspecialchars($soa['terms']) ?> days
-                    <?php endif; ?>
-                </td>
+                <td><strong>Project Site:</strong> <?= htmlspecialchars($soa['site_name']) ?></td>
+                <td><strong>PO Number:</strong> *</td>
+            </tr>
+            <tr>
+                <td><strong>Billing Date:</strong> <?= htmlspecialchars($soa['billing_date']) ?></td>
             </tr>
         </table>
 
         <table class="soa-table">
-            <thead>
+            <thead class="soa-header">
                 <tr>
                     <th>Date</th>
-                    <th>DR No</th>
-                    <th>Plate</th>
-                    <th>Material</th>
-                    <th class="right">Qty</th>
-                    <th class="right">Price</th>
-                    <th class="right">Amount</th>
+                    <th>DR No.</th>
+                    <th>Plate No.</th>
+                    <th>Materials</th>
+                    <th>Quantity</th>
+                    <th>Price</th>
+                    <th>Amount</th>
                 </tr>
             </thead>
             <tbody>
-            <?php foreach ($rows as $r):
-                $rowAmt = $r['quantity'] * $r['unit_price'];
-            ?>
-                <tr>
-                    <td><?= htmlspecialchars($r['delivery_date']) ?></td>
-                    <td><?= htmlspecialchars($r['dr_no']) ?></td>
-                    <td><?= htmlspecialchars($r['plate_no']) ?></td>
-                    <td><?= htmlspecialchars($r['material']) ?></td>
-                    <td class="right"><?= number_format($r['quantity'], 2) ?></td>
-                    <td class="right"><?= number_format($r['unit_price'], 2) ?></td>
-                    <td class="right"><?= number_format($rowAmt, 2) ?></td>
-                </tr>
-            <?php endforeach; ?>
+                <?php foreach ($rows as $r):
+                    $rowAmt = $r['quantity'] * $r['unit_price'];
+                ?>
+                    <tr>
+                        <td><?= htmlspecialchars($r['delivery_date']) ?></td>
+                        <td><?= htmlspecialchars($r['dr_no']) ?></td>
+                        <td><?= htmlspecialchars($r['plate_no']) ?></td>
+                        <td><?= htmlspecialchars($r['material']) ?></td>
+                        <td style='text-align:right'><?= number_format($r['quantity'], 2) ?></td>
+                        <td style='text-align:right'><?= number_format($r['unit_price'], 2) ?></td>
+                        <td style='text-align:right'><?= number_format($rowAmt, 2) ?></td>
+                    </tr>
+                <?php endforeach; ?>
             </tbody>
         </table>
 
-        <div class="totals">
-            <strong>Total Qty:</strong> <?= number_format($qty, 2) ?><br>
-            <strong>Total Amount:</strong> ₱<?= number_format($amt, 2) ?>
+        <div class="totals-section">
+            <div><strong>Total Quantity:</strong> <?= number_format($qty, 2) ?></div>
+            <div><strong>Total Amount:</strong> ₱<?= number_format($amt, 2) ?></div>
+            <div><strong>Total DR Count:</strong> <?= count($rows) ?></div>
+
+            <div class="terms-block">
+                <strong>Terms of Payment:</strong><br>
+                <?php if ($soa['terms'] === '*'): ?>
+                    <span class="terms-highlight">
+                        NO CASH PAYMENT WILL BE ACCEPTED
+                    </span>
+                <?php else: ?>
+                    <?= htmlspecialchars($soa['terms']) ?>
+                <?php endif; ?>
+            </div>
         </div>
         <div class="footer">
-    <table style="width:100%; font-size:11px;">
-        <tr>
-            <td>
-                <strong>Prepared By:</strong><br><br>
-                __________________________<br>
-                <?= htmlspecialchars($_SESSION['username'] ?? '') ?>
-            </td>
-            <td>
-                <strong>Checked By:</strong><br><br>
-                __________________________
-            </td>
-            <td>
-                <strong>Approved By:</strong><br><br>
-                __________________________
-            </td>
-            <td>
-                <strong>Date Submitted:</strong><br><br>
-                __________________________
-            </td>
-        </tr>
-    </table>
-</div>
+        <table class="footer-table">
+            <tr>
+                <td>
+                    <strong>Prepared By:</strong><br><br><br>
+                    <span class="sig-name"><?= htmlspecialchars($_SESSION['username'] ?? '') ?></span><br>
+                    <span class="sig-role">Sales and Operation Officer</span>
+                </td>
+                <td>
+                    <strong>Checked By:</strong><br><br><br>
+                    <span class="sig-name">Ma. Christa Agustin</span><br>
+                    <span class="sig-role">Accounting & Admin Officer</span>
+                </td>
+                <td>
+                    <strong>Approved By:</strong><br><br><br>
+                    <span class="sig-name">Analyn Buenviaje</span><br>
+                    <span class="sig-role">General Manager</span>
+                </td>
+                <td>
+                    <strong>Received By:</strong><br><br><br>
+                    <span class="sig-name">Customer's Name</span><br>
+                    <span class="sig-role">&nbsp;</span>
+                </td>
+            </tr>
+        </table>
+    </div>
     </div>
 
-    <?php
+<?php
 }
 ?>
 <!DOCTYPE html>
 <html>
+
 <head>
-<meta charset="utf-8">
-<title>SOA Batch Print</title>
-<style>
-@page { size: A4; margin: 10mm; }
-body { font-family: Arial; font-size: 11px; margin: 0; }
-.page {
-    width: 190mm;
-    min-height: 277mm;
-    position: relative; /* 🔴 REQUIRED */
-}
-.page-break { page-break-before: always; }
-.header-image { width: 100%; margin-bottom: 5px; }
-.header-table { width: 100%; font-size: 11px; margin-bottom: 6px; }
-.soa-table { width: 100%; border-collapse: collapse; }
-.soa-table th, .soa-table td { border: 1px solid #000; padding: 4px; font-size: 10px; }
-.soa-table th { background: #f0f0f0; }
-.right { text-align: right; }
-.totals { margin-top: 10px; }
-.footer {
-    position: absolute;
-    bottom: 10mm;
-    left: 0;
-    width: 100%;
-}
-</style>
+    <meta charset="utf-8">
+    <title>SOA Batch Print</title>
+    <style>
+        @import url('../css/print.css');
+    </style>
 </head>
+
 <body>
+    <div class="print-date">
+        <?= date('d–F–Y') ?>
+    </div>
+    <?php
+    $first = true;
+    foreach ($soas as $soa) {
+        printSOA($conn, $soa, !$first);
+        $first = false;
+    }
+    ?>
 
-<?php
-$first = true;
-foreach ($soas as $soa) {
-    printSOA($conn, $soa, !$first);
-    $first = false;
-}
-?>
-
-<script>window.print();</script>
+    <script>
+        window.print();
+    </script>
 </body>
+
 </html>
