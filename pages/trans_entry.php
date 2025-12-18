@@ -122,6 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $upd = $conn->prepare("
                     UPDATE statement_of_account
                     SET status = 'finalized',
+                        billing_date = CURRENT_DATE,
                         date_edited = :date_edited,
                         edited_by = :edited_by
                     WHERE soa_id = :id
