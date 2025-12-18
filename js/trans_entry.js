@@ -107,6 +107,7 @@ window.TransEntryPage = (() => {
             formTitle.text("Delivery");
             submitBtn.text("Save Delivery");
             cancelBtn.addClass("d-none");
+            $("#delivery-insert-btn").removeClass("d-none");
         }
 
 
@@ -186,6 +187,7 @@ window.TransEntryPage = (() => {
             submitBtn.text("Update Delivery");
             formTitle.text("Edit Delivery #" + delId);
             cancelBtn.removeClass("d-none");
+            $("#delivery-insert-btn").addClass("d-none");
 
             $("#deliveryFormCollapse").collapse("show");
             window.scrollTo({ top: 0, behavior: "smooth" });

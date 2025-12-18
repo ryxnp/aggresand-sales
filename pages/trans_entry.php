@@ -357,6 +357,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $soaRow = $soaStmt->fetch(PDO::FETCH_ASSOC);
             if (!$soaRow) throw new Exception('Invalid SOA selected');
             if (($soaRow['status'] ?? '') === 'finalized') throw new Exception('SOA is finalized. Deliveries are locked.');
+            
+            // normalize once
+            $dr_no = trim((string)$dr_no);
+
+            // ================= DR NUMBER UNIQUENESS CHECK =================
+            if ($action === 'create') {
+
+                if ($dr_no !== '') {
+                    $chk = $conn->prepare("
+                        SELECT COUNT(*)
+                        FROM delivery
+                        WHERE TRIM(dr_no) = :dr_no
+                        AND is_deleted = 0
+                    ");
+                    $chk->execute([':dr_no' => $dr_no]);
+
+                    if ((int)$chk->fetchColumn() > 0) {
+                        throw new Exception('DR Number already exists. Please use a unique DR Number.');
+                    }
+                }
+
+            } elseif ($action === 'update') {
+
+                if ($id <= 0) throw new Exception('Invalid delivery ID');
+
+                // fetch old row early (needed for comparison)
+                $old = $conn->prepare("SELECT * FROM delivery WHERE del_id=:id AND is_deleted=0");
+                $old->execute([':id'=>$id]);
+                $oldData = $old->fetch(PDO::FETCH_ASSOC);
+                if (!$oldData) throw new Exception('Delivery not found');
+
+                $old_dr = trim((string)($oldData['dr_no'] ?? ''));
+
+                // only check if DR was changed
+                if ($dr_no !== '' && $dr_no !== $old_dr) {
+                    $chk = $conn->prepare("
+                        SELECT COUNT(*)
+                        FROM delivery
+                        WHERE TRIM(dr_no) = :dr_no
+                        AND del_id != :del_id
+                        AND is_deleted = 0
+                    ");
+                    $chk->execute([
+                        ':dr_no'  => $dr_no,
+                        ':del_id' => $id
+                    ]);
+
+                    if ((int)$chk->fetchColumn() > 0) {
+                        throw new Exception('DR Number already exists. Please use a unique DR Number.');
+                    }
+                }
+
+                // ✅ IMPORTANT: reuse $oldData later in update block
+            }
 
             if ($action === 'create') {
                 $audit = audit_on_create($admin);
@@ -416,11 +470,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($action === 'update') {
                 if ($id <= 0) throw new Exception('Invalid delivery ID');
-
-                $old = $conn->prepare("SELECT * FROM delivery WHERE del_id=:id AND is_deleted=0");
-                $old->execute([':id'=>$id]);
-                $oldData = $old->fetch(PDO::FETCH_ASSOC);
-                if (!$oldData) throw new Exception('Delivery not found');
 
                 // lock if old SOA finalized
                 if (!empty($oldData['soa_id'])) {
@@ -516,10 +565,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     } catch (Exception $e) {
         $_SESSION['alert'] = ['type'=>'danger','message'=>$e->getMessage()];
-        // keep SOA if any
-        $redir = $redirectUrl . ($soa_id > 0 ? '?soa_id='.$soa_id : '');
-        header("Location: $redir");
+
+        $query = [];
+        if ($soa_id > 0) $query[] = 'soa_id=' . $soa_id;
+        if (!empty($_POST['insert_mode'])) $query[] = 'keep=1';
+
+        $qs = $query ? '?' . implode('&', $query) : '';
+
+        header("Location: {$redirectUrl}{$qs}");
         exit;
+
     }
 
     // fallback
