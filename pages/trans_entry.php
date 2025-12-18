@@ -279,14 +279,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Delivery date is required');
             }
 
-            $billing_date = trim($_POST['billing_date'] ?? '');
-            if ($billing_date === '') {
-                $billing_date = $delivery_date;
-            }
             $dr_no         = trim($_POST['dr_no'] ?? '');
             $po_number     = trim($_POST['po_number'] ?? '') ?: null;
-            $terms_raw     = trim($_POST['terms'] ?? '');
-            $terms         = ($terms_raw !== '' ? (int)$terms_raw : null);
             $truck_id      = (int)($_POST['truck_id'] ?? 0) ?: null;
             $material      = trim($_POST['material_name'] ?? '');
             $quantity      = (float)($_POST['quantity'] ?? 0);
@@ -416,16 +410,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $audit = audit_on_create($admin);
 
                 $stmt = $conn->prepare("
-                    INSERT INTO delivery
-                        (soa_id, customer_id, delivery_date, dr_no,
-                         truck_id, billing_date, material,
-                         quantity, unit_price, po_number, terms,
-                         status, is_deleted,
-                         date_created, date_edited, created_by, edited_by)
+                    INSERT INTO delivery (
+                        soa_id, customer_id, delivery_date, dr_no,
+                        truck_id, material,
+                        quantity, unit_price, po_number,
+                        status, is_deleted,
+                        date_created, date_edited, created_by, edited_by
+                    )
                     VALUES
                         (:soa_id, :customer_id, :delivery_date, :dr_no,
-                         :truck_id, :billing_date, :material,
-                         :quantity, :unit_price, :po_number, :terms,
+                         :truck_id, :material,
+                         :quantity, :unit_price, :po_number,
                          :status, 0,
                          :date_created, :date_edited, :created_by, :edited_by)
                 ");
@@ -435,12 +430,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':delivery_date'=> $delivery_date,
                     ':dr_no'        => $dr_no,
                     ':truck_id'     => $truck_id,
-                    ':billing_date' => $billing_date ?: $delivery_date,
                     ':material'     => $material,
                     ':quantity'     => $quantity,
                     ':unit_price'   => $unit_price,
                     ':po_number'    => $po_number,
-                    ':terms'        => $terms,
                     ':status'       => $status,
                     ':date_created' => $audit['date_created'],
                     ':date_edited'  => $audit['date_edited'],
@@ -489,12 +482,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         delivery_date= :delivery_date,
                         dr_no        = :dr_no,
                         truck_id     = :truck_id,
-                        billing_date = :billing_date,
                         material     = :material,
                         quantity     = :quantity,
                         unit_price   = :unit_price,
                         po_number    = :po_number,
-                        terms        = :terms,
                         status       = :status,
                         date_edited  = :date_edited,
                         edited_by    = :edited_by
@@ -507,12 +498,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':delivery_date'=> $delivery_date,
                     ':dr_no'        => $dr_no,
                     ':truck_id'     => $truck_id,
-                    ':billing_date' => $billing_date,
                     ':material'     => $material,
                     ':quantity'     => $quantity,
                     ':unit_price'   => $unit_price,
                     ':po_number'    => $po_number,
-                    ':terms'        => $terms,
                     ':status'       => $status,
                     ':date_edited'  => $audit['date_edited'],
                     ':edited_by'    => $audit['edited_by'],
@@ -1050,10 +1039,10 @@ $queryBase = http_build_query([
                                     <label class="form-label">Delivery Date</label>
                                     <input type="date" name="delivery_date" id="delivery_date" class="form-control" required>
                                 </div>
-                                <div class="col">
+                                <!-- <div class="col">
                                     <label class="form-label">Billing Date</label>
                                     <input type="date" name="billing_date" id="billing_date" class="form-control">
-                                </div>
+                                </div> -->
                             </div>
 
                             <div class="row mb-3">
@@ -1065,7 +1054,7 @@ $queryBase = http_build_query([
                                     <label class="form-label">PO Number</label>
                                     <input type="text" name="po_number" id="po_number" class="form-control">
                                 </div>
-                                <div class="col">
+                                <!-- <div class="col">
                                     <label class="form-label">Terms of Payment</label>
                                     <select name="terms" id="terms" class="form-select">
                                         <option value="*">*</option>
@@ -1073,7 +1062,7 @@ $queryBase = http_build_query([
                                         <option value="30">30 Days</option>
                                         <option value="45">45 Days</option>
                                     </select>
-                                </div>
+                                </div> -->
                             </div>
 
                             <div class="mb-3">
@@ -1227,7 +1216,6 @@ $queryBase = http_build_query([
                             data-del-id="<?= (int)$r['del_id'] ?>"
                             data-customer-id="<?= (int)$r['customer_id'] ?>"
                             data-delivery-date="<?= htmlspecialchars($r['delivery_date']) ?>"
-                            data-billing-date="<?= htmlspecialchars($r['billing_date']) ?>"
                             data-dr-no="<?= htmlspecialchars($r['dr_no'], ENT_QUOTES) ?>"
                             data-material="<?= htmlspecialchars($r['material'], ENT_QUOTES) ?>"
                             data-quantity="<?= htmlspecialchars($r['quantity']) ?>"

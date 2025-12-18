@@ -64,7 +64,7 @@ window.TransEntryPage = (() => {
 
         const customerSel = $("#delivery_customer_id");
         const deliveryDate= $("#delivery_date");
-        const billingDate = $("#billing_date");
+        // const billingDate = $("#billing_date");
         const drNo        = $("#dr_no");
         const poNumber    = $("#po_number");
         const terms       = $("#terms");
@@ -92,7 +92,7 @@ window.TransEntryPage = (() => {
 
             customerSel.val("").trigger("change");
             deliveryDate.val("");
-            billingDate.val("");
+            // billingDate.val("");
             drNo.val("");
             poNumber.val("");
             terms.val("");
@@ -144,7 +144,7 @@ window.TransEntryPage = (() => {
             const delId       = row.data("del-id");
             const cid         = row.data("customer-id");
             const delDate     = row.data("delivery-date");
-            const billDate    = row.data("billing-date");
+            // const billDate    = row.data("billing-date");
             const dr          = row.data("dr-no");
             const material    = row.data("material");
             const qty         = row.data("quantity");
@@ -160,7 +160,7 @@ window.TransEntryPage = (() => {
             customerSel.val(String(cid)).trigger("change");
 
             deliveryDate.val(delDate || "");
-            billingDate.val(billDate || "");
+            // billingDate.val(billDate || "");
             drNo.val(dr || "");
             poNumber.val(po);
             terms.val(termsVal);
