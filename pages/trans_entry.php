@@ -757,6 +757,7 @@ $listSql = "
         d.delivery_date,
         d.dr_no,
         d.billing_date,
+        d.truck_id,
         d.material,
         d.quantity,
         d.unit_price,
@@ -1068,10 +1069,12 @@ $queryBase = http_build_query([
 
                             <div class="mb-3">
                                 <label class="form-label">Truck</label>
-                                <select name="truck_id" id="truck_id" class="form-select select2-field">
+                                <select id="truck_id" name="truck_id" class="form-select select2-field">
                                     <option value="">-- Select Truck --</option>
-                                    <?php foreach ($trucks as $tr): ?>
-                                        <option value="<?= (int)$tr['truck_id'] ?>"><?= htmlspecialchars($tr['plate_no']) ?></option>
+                                    <?php foreach ($trucks as $t): ?>
+                                        <option value="<?= $t['truck_id'] ?>">
+                                            <?= htmlspecialchars($t['plate_no']) ?>
+                                        </option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -1217,6 +1220,7 @@ $queryBase = http_build_query([
                             data-del-id="<?= (int)$r['del_id'] ?>"
                             data-customer-id="<?= (int)$r['customer_id'] ?>"
                             data-delivery-date="<?= htmlspecialchars($r['delivery_date']) ?>"
+                            data-truck-id="<?= (int)$r['truck_id'] ?>"
                             data-dr-no="<?= htmlspecialchars($r['dr_no'], ENT_QUOTES) ?>"
                             data-material="<?= htmlspecialchars($r['material'], ENT_QUOTES) ?>"
                             data-quantity="<?= htmlspecialchars($r['quantity']) ?>"
@@ -1230,7 +1234,7 @@ $queryBase = http_build_query([
                             <td><?= htmlspecialchars($r['customer_name']) ?></td>
                             <td><?= htmlspecialchars($r['company_name']) ?></td>
                             <td><?= htmlspecialchars($r['site_name']) ?></td>
-                            <td><?= htmlspecialchars($r['plate_no']) ?></td>
+                            <td class="truck-plate"><?= htmlspecialchars($r['plate_no'] ?? '') ?></td>
                             <td><?= htmlspecialchars($r['material']) ?></td>
                             <td><?= htmlspecialchars($r['quantity']) ?></td>
                             <td><?= number_format((float)$r['unit_price'], 2) ?></td>

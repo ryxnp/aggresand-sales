@@ -139,12 +139,15 @@ window.TransEntryPage = (() => {
 
         // Edit delivery from row button
         $(".trans-btn-edit-delivery").on("click", function () {
+            // ✅ DEFINE ROW FIRST
             const row = $(this).closest(".delivery-row");
 
+            // 🔍 DEBUG (KEEP THIS FOR NOW)
+            console.log("EDIT TRUCK ID =", row.data("truck-id"));
             const delId       = row.data("del-id");
             const cid         = row.data("customer-id");
             const delDate     = row.data("delivery-date");
-            // const billDate    = row.data("billing-date");
+            const truckIdRaw = row.data("truck-id");
             const dr          = row.data("dr-no");
             const material    = row.data("material");
             const qty         = row.data("quantity");
@@ -166,7 +169,20 @@ window.TransEntryPage = (() => {
             terms.val(termsVal);
             quantity.val(qty || "");
             unitPrice.val(price || "");
-            statusSel.val(stat || "pending");
+            
+            // STATUS
+            const statusVal = (row.data("status") || "").toString().toLowerCase();
+            statusSel.val(statusVal).trigger("change");
+            
+            // ===================== FIX TRUCK SELECTION =====================
+            const truckId = row.data("truck-id");
+
+            if (truckId && truckId !== 0) {
+                truckSel.val(String(truckId));
+                truckSel.trigger("change.select2");
+            } else {
+                truckSel.val("").trigger("change");
+            }
 
             // Try to select matching material option by its text
             let found = false;
