@@ -55,12 +55,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($action === 'create') {
                 $company_id = (int)($_POST['company_id'] ?? 0);
                 $site_id    = (int)($_POST['site_id'] ?? 0);
-                $terms_raw  = trim($_POST['terms'] ?? '');
-                $terms      = ($terms_raw !== '' ? (int)$terms_raw : null);
+                $terms = $_POST['terms'] ?? '*';
+                $allowedTerms = ['*', '15', '30', '45'];
 
                 if ($company_id <= 0) throw new Exception('Company is required for SOA');
                 if ($site_id <= 0) throw new Exception('Site is required for SOA');
-                if ($terms === null || $terms < 0) throw new Exception('Terms is required for SOA');
+                if (!in_array($terms, $allowedTerms, true)) {
+                    throw new Exception('Invalid Terms of Payment');
+                }
 
                 $audit  = audit_on_create($admin);
                 $soa_no = generate_soa_no($conn);
@@ -990,8 +992,13 @@ $queryBase = http_build_query([
                                     <input type="text" name="po_number" id="po_number" class="form-control">
                                 </div>
                                 <div class="col">
-                                    <label class="form-label">Terms (Days)</label>
-                                    <input type="number" name="terms" id="terms" class="form-control">
+                                    <label class="form-label">Terms of Payment</label>
+                                    <select name="terms" id="terms" class="form-select">
+                                        <option value="*">*</option>
+                                        <option value="15">15 Days</option>
+                                        <option value="30">30 Days</option>
+                                        <option value="45">45 Days</option>
+                                    </select>
                                 </div>
                             </div>
 
@@ -1241,8 +1248,16 @@ $queryBase = http_build_query([
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Terms (Days)</label>
-                            <input type="number" name="terms" class="form-control" placeholder="e.g. 30" required>
+                            <label class="form-label">Terms of Payment</label>
+                            <select name="terms" class="form-select">
+                                <option value="*" selected>*</option>
+                                <option value="15">15 Days</option>
+                                <option value="30">30 Days</option>
+                                <option value="45">45 Days</option>
+                            </select>
+                            <div class="form-text">
+                                * = No cash payment will be accepted
+                            </div>
                         </div>
 
                         <div class="alert alert-secondary mb-0">

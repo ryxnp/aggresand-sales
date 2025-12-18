@@ -136,7 +136,16 @@ function print_header_block($header_image, $soa_number, $company_name, $site_nam
 <tr>
     <td><strong>Project Site:</strong> <?= htmlspecialchars($site_name) ?></td>
     <td><strong>PO Number:</strong> <?= htmlspecialchars($po_numbers_display) ?></td>
-    <td><strong>Terms:</strong> <?= htmlspecialchars($terms_display) ?> days</td>
+    <td>
+        <strong>Terms of Payment:</strong>
+        <?php if ($terms_display === '*'): ?>
+            <span style="font-weight:bold;">
+                NO CASH PAYMENT WILL BE ACCEPTED
+            </span>
+        <?php else: ?>
+            <?= htmlspecialchars($terms_display) ?> Days
+        <?php endif; ?>
+    </td>
 </tr>
 </table>
 <?php
