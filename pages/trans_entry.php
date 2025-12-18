@@ -397,8 +397,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $newDelId = (int)$conn->lastInsertId();
                 audit_log('delivery', $newDelId, 'CREATE', null, $_POST, $admin);
 
+                // $_SESSION['alert'] = ['type'=>'success','message'=>'Delivery created'];
+                // header("Location: /main.php#trans_entry.php?soa_id=".$soa_id_post);
+                // exit;
                 $_SESSION['alert'] = ['type'=>'success','message'=>'Delivery created'];
-                header("Location: /main.php#trans_entry.php?soa_id=".$soa_id_post);
+
+                $insertMode = (int)($_POST['insert_mode'] ?? 0);
+
+                if ($insertMode === 1) {
+                    // stay on page, keep form values
+                    header("Location: /main.php#trans_entry.php?soa_id=".$soa_id_post."&keep=1");
+                } else {
+                    // normal save behavior
+                    header("Location: /main.php#trans_entry.php?soa_id=".$soa_id_post);
+                }
                 exit;
             }
 
@@ -787,8 +799,12 @@ $queryBase = http_build_query([
             </div>
 
             <div class="ms-auto d-flex gap-2">
-                <button type="button" class="btn btn-outline-primary" id="btn_open_create_soa"
-                        data-bs-toggle="modal" data-bs-target="#soaCreateModal">
+                <button type="button"
+                        class="btn btn-outline-primary"
+                        id="btn_open_create_soa"
+                        data-bs-toggle="modal"
+                        data-bs-target="#soaCreateModal"
+                        <?= $soa ? 'disabled' : '' ?>>
                     Create New SOA
                 </button>
 
@@ -956,10 +972,13 @@ $queryBase = http_build_query([
 
                     <div class="card-body">
                         <form id="delivery-form" method="POST" action="pages/trans_entry.php" <?= $soaLocked ? 'class="opacity-50"' : '' ?>>
+                            <fieldset id="delivery-fieldset">
                             <input type="hidden" name="form_type" value="delivery">
                             <input type="hidden" name="action" id="delivery_action" value="create">
                             <input type="hidden" name="del_id" id="del_id">
                             <input type="hidden" name="soa_id" id="soa_id" value="<?= (int)$soa_id ?>">
+                            <input type="hidden" name="insert_mode" id="insert_mode" value="0">
+                            <input type="hidden" name="keep" id="delivery_keep" value="0">
 
                             <div class="mb-3">
                                 <label class="form-label">Customer</label>
@@ -1046,7 +1065,11 @@ $queryBase = http_build_query([
                             <button type="submit" class="btn btn-success" <?= ($soa && ($soa['status'] ?? '') === 'finalized') ? 'disabled' : '' ?> id="delivery-submit-btn">
                                 Save Delivery
                             </button>
+                            <button type="button" class="btn btn-outline-primary ms-2" id="delivery-insert-btn">
+                                Insert
+                            </button>
                             <button type="button" class="btn btn-secondary d-none" id="delivery-cancel-edit-btn">Cancel</button>
+                            </fieldset>
                         </form>
                     </div>
 
@@ -1279,6 +1302,11 @@ $queryBase = http_build_query([
 <script>
 window.currentSOAStatus = <?= json_encode($soa['status'] ?? null) ?>;
 window.currentSOAId     = <?= json_encode($soa_id) ?>;
+
+window.SOA_STATUS_MAP = <?= json_encode(
+  array_column($soas, 'status', 'soa_id')
+) ?>;
+
 </script>
 
 
