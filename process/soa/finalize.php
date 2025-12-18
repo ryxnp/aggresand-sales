@@ -72,7 +72,14 @@ try {
   }
   $sql .= " WHERE soa_id = :id AND is_deleted = 0";
 
-  $upd = $conn->prepare($sql);
+$upd = $conn->prepare("
+    UPDATE statement_of_account
+    SET status = 'finalized',
+        billing_date = CURDATE(),
+        date_edited = :date_edited,
+        edited_by = :edited_by
+    WHERE soa_id = :id
+");
   $upd->execute([
     ':date_edited' => $audit['date_edited'],
     ':edited_by'   => $audit['edited_by'],

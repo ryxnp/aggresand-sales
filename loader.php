@@ -18,6 +18,16 @@ $pagesDir = __DIR__ . '/pages/';
 // Get requested page from URL
 $page = isset($_GET['page']) ? basename($_GET['page']) : '';
 
+// Parse hash parameters (reports.php&billing_date=YYYY-MM-DD)
+if (isset($_SERVER['REQUEST_URI']) && str_contains($_SERVER['REQUEST_URI'], '#')) {
+    $hash = parse_url($_SERVER['REQUEST_URI'], PHP_URL_FRAGMENT);
+    parse_str(str_replace('reports.php&', '', $hash), $hashParams);
+
+    if (isset($hashParams['billing_date'])) {
+        $_POST['billing_date'] = $hashParams['billing_date'];
+    }
+}
+
 $allowedPages = [
     'trans_entry.php',
     'reports.php',
