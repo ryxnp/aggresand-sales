@@ -174,9 +174,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $contractor_id = (int)($_POST['contractor_id'] ?? 0) ?: null;
             $customer_name = trim($_POST['customer_name'] ?? '');
-            $contact_no    = trim($_POST['contact_no'] ?? '');
-            $email         = trim($_POST['email'] ?? '');
-            $address       = trim($_POST['address'] ?? '');
+            $contact_no    = trim($_POST['contact_no'] ?? '') ?: null;
+            $email         = trim($_POST['email'] ?? '') ?: null;
+            $address       = trim($_POST['address'] ?? '') ?: null;
             $status        = $_POST['status'] ?? 'active';
 
             if ($customer_name === '') throw new Exception('Customer name is required');
@@ -665,31 +665,20 @@ require_once __DIR__ . '/../helpers/alerts.php';
 
 $q              = trim($_GET['q'] ?? '');
 $statusFilter   = $_GET['status_filter'] ?? '';
-$companyFilter  = isset($_GET['company_filter']) ? (int)$_GET['company_filter'] : 0;
 $siteFilter     = isset($_GET['site_filter']) ? (int)$_GET['site_filter'] : 0;
 $materialFilter = $_GET['material_filter'] ?? '';
-$dateFrom       = $_GET['del_date_from'] ?? '';
-$dateTo         = $_GET['del_date_to'] ?? '';
+$truckFilter = isset($_GET['truck_filter']) ? (int)$_GET['truck_filter'] : 0;
 
 $where  = "d.is_deleted = 0";
 $params = [];
 
-// SOA scoped table: if no SOA, show none
+// SOA is REQUIRED to show deliveries
 if ($soa_id > 0) {
     $where .= " AND d.soa_id = :soa_id";
     $params[':soa_id'] = $soa_id;
 } else {
+    // hard stop — no SOA, no rows
     $where .= " AND 1 = 0";
-}
-
-// date range
-if ($dateFrom !== '') {
-    $where .= " AND d.delivery_date >= :date_from";
-    $params[':date_from'] = $dateFrom;
-}
-if ($dateTo !== '') {
-    $where .= " AND d.delivery_date <= :date_to";
-    $params[':date_to'] = $dateTo;
 }
 
 // status
@@ -698,20 +687,17 @@ if ($statusFilter !== '') {
     $params[':status'] = $statusFilter;
 }
 
-// company/site filter via customer
-if ($companyFilter > 0) {
-    $where .= " AND c.company_id = :company_id";
-    $params[':company_id'] = $companyFilter;
-}
-if ($siteFilter > 0) {
-    $where .= " AND c.site_id = :site_id";
-    $params[':site_id'] = $siteFilter;
-}
 
 // material filter
 if ($materialFilter !== '') {
     $where .= " AND d.material = :material_filter";
     $params[':material_filter'] = $materialFilter;
+}
+
+// truck filter
+if ($truckFilter > 0) {
+    $where .= " AND d.truck_id = :truck_id";
+    $params[':truck_id'] = $truckFilter;
 }
 
 // free text
@@ -763,7 +749,6 @@ $listSql = "
         d.unit_price,
         d.status,
         d.po_number,
-        d.terms,
         c.customer_id,
         c.customer_name,
         co.company_name,
@@ -790,11 +775,8 @@ $queryBase = http_build_query([
     'soa_id'         => $soa_id,
     'q'              => $q,
     'status_filter'  => $statusFilter,
-    'company_filter' => $companyFilter,
-    'site_filter'    => $siteFilter,
     'material_filter'=> $materialFilter,
-    'del_date_from'  => $dateFrom,
-    'del_date_to'    => $dateTo,
+    'truck_filter'   => $truckFilter,
 ]);
 ?>
 
@@ -815,7 +797,7 @@ $queryBase = http_build_query([
 
             <div style="min-width:320px;">
                 <label class="form-label mb-1">Statement of Account</label>
-                <select id="soa_select" class="form-select">
+                <select id="soa_select" class="form-select select2-field">
                     <option value="">-- Select SOA --</option>
                     <?php foreach ($soas as $s): ?>
                         <option value="<?= (int)$s['soa_id'] ?>"
@@ -956,7 +938,7 @@ $queryBase = http_build_query([
                                 <input type="text" name="customer_name" id="customer_name" class="form-control" required>
                             </div>
 
-                            <div class="mb-3">
+                            <!-- <div class="mb-3">
                                 <label class="form-label">Contact No</label>
                                 <input type="text" name="contact_no" id="customer_contact_no" class="form-control">
                             </div>
@@ -969,7 +951,7 @@ $queryBase = http_build_query([
                             <div class="mb-3">
                                 <label class="form-label">Address</label>
                                 <input type="text" name="address" id="customer_address" class="form-control">
-                            </div>
+                            </div> -->
 
                             <div class="mb-3">
                                 <label class="form-label">Status</label>
@@ -1041,10 +1023,6 @@ $queryBase = http_build_query([
                                     <label class="form-label">Delivery Date</label>
                                     <input type="date" name="delivery_date" id="delivery_date" class="form-control" required>
                                 </div>
-                                <!-- <div class="col">
-                                    <label class="form-label">Billing Date</label>
-                                    <input type="date" name="billing_date" id="billing_date" class="form-control">
-                                </div> -->
                             </div>
 
                             <div class="row mb-3">
@@ -1056,15 +1034,6 @@ $queryBase = http_build_query([
                                     <label class="form-label">PO Number</label>
                                     <input type="text" name="po_number" id="po_number" class="form-control">
                                 </div>
-                                <!-- <div class="col">
-                                    <label class="form-label">Terms of Payment</label>
-                                    <select name="terms" id="terms" class="form-select">
-                                        <option value="*">*</option>
-                                        <option value="15">15 Days</option>
-                                        <option value="30">30 Days</option>
-                                        <option value="45">45 Days</option>
-                                    </select>
-                                </div> -->
                             </div>
 
                             <div class="mb-3">
@@ -1141,20 +1110,17 @@ $queryBase = http_build_query([
         <div class="card-header">
             <form class="row g-2 align-items-end trans-filter-form flex-nowrap" method="GET" action="">
     <input type="hidden" name="soa_id" value="<?= (int)$soa_id ?>">
-
-    <div class="col-lg-2 col-md-3 col-sm-6">
-        <label class="form-label">Delivery From</label>
-        <input type="date" name="del_date_from" class="form-control"
-               value="<?= htmlspecialchars($dateFrom) ?>">
+    <input type="hidden" name="form_type" value="filter">
+    <!-- SEARCH (big) -->
+    <div class="col-lg-5 col-md-12">
+        <label class="form-label">Search</label>
+        <input type="text" name="q" class="form-control"
+               value="<?= htmlspecialchars($q) ?>"
+               placeholder="DR / Customer / Material / Truck / PO">
     </div>
 
-    <div class="col-lg-2 col-md-3 col-sm-6">
-        <label class="form-label">Delivery To</label>
-        <input type="date" name="del_date_to" class="form-control"
-               value="<?= htmlspecialchars($dateTo) ?>">
-    </div>
-
-    <div class="col-lg-2 col-md-3 col-sm-6">
+    <!-- MATERIAL -->
+    <div class="col-lg-2 col-md-4">
         <label class="form-label">Material</label>
         <select name="material_filter" class="form-select">
             <option value="">All</option>
@@ -1167,28 +1133,36 @@ $queryBase = http_build_query([
         </select>
     </div>
 
-    <div class="col-lg-2 col-md-3 col-sm-6">
-        <label class="form-label">Status</label>
-        <select name="status_filter" class="form-select">
+    <!-- TRUCK -->
+    <div class="col-lg-2 col-md-4">
+        <label class="form-label">Truck</label>
+        <select name="truck_filter" class="form-select">
             <option value="">All</option>
-            <option value="pending"   <?= $statusFilter === 'pending' ? 'selected' : '' ?>>Pending</option>
-            <option value="delivered" <?= $statusFilter === 'delivered' ? 'selected' : '' ?>>Delivered</option>
-            <option value="cancelled" <?= $statusFilter === 'cancelled' ? 'selected' : '' ?>>Cancelled</option>
+            <?php foreach ($trucks as $t): ?>
+                <option value="<?= (int)$t['truck_id'] ?>"
+                    <?= $truckFilter === (int)$t['truck_id'] ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($t['plate_no']) ?>
+                </option>
+            <?php endforeach; ?>
         </select>
     </div>
 
-    <div class="col-lg-3 col-md-6 col-sm-12">
-        <label class="form-label">Search</label>
-        <input type="text" name="q" class="form-control"
-               value="<?= htmlspecialchars($q) ?>"
-               placeholder="DR / Customer / Company / Truck / Material / PO">
+    <!-- STATUS -->
+    <div class="col-lg-2 col-md-4">
+        <label class="form-label">Status</label>
+        <select name="status_filter" class="form-select">
+            <option value="">All</option>
+            <option value="pending"   <?= $statusFilter==='pending'?'selected':'' ?>>Pending</option>
+            <option value="delivered" <?= $statusFilter==='delivered'?'selected':'' ?>>Delivered</option>
+            <option value="cancelled" <?= $statusFilter==='cancelled'?'selected':'' ?>>Cancelled</option>
+        </select>
     </div>
 
-    <div class="col-lg-1 col-md-3 col-sm-6">
+    <!-- APPLY -->
+    <div class="col-lg-1">
         <button class="btn btn-primary w-100">Apply</button>
     </div>
 </form>
-
         </div>
 
         <div class="card-body table-responsive">
@@ -1227,7 +1201,6 @@ $queryBase = http_build_query([
                             data-unit-price="<?= htmlspecialchars($r['unit_price']) ?>"
                             data-status="<?= htmlspecialchars($r['status']) ?>"
                             data-po="<?= htmlspecialchars($r['po_number'] ?? '', ENT_QUOTES) ?>"
-                            data-terms="<?= htmlspecialchars($r['terms'] ?? '', ENT_QUOTES) ?>"
                         >
                             <td><?= htmlspecialchars($r['dr_no']) ?></td>
                             <td><?= htmlspecialchars($r['delivery_date']) ?></td>
@@ -1356,5 +1329,3 @@ window.SOA_STATUS_MAP = <?= json_encode(
 ) ?>;
 
 </script>
-
-

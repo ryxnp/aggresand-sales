@@ -161,3 +161,35 @@
             font-size: 11px;
             line-height: 1.3;
         }
+
+        .page-number {
+            text-align: right;
+            font-size: 11px;
+            margin: 4px 0 6px 0;
+        }
+
+        /* ==============================
+        TOP-RIGHT META (Billing Date + Page No)
+        ============================== */
+
+        .page {
+            position: relative; /* REQUIRED for absolute positioning */
+        }
+
+        .page-meta {
+            position: absolute;
+            top: 1mm;
+            right: 10mm;
+            text-align: right;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        .page-meta .billing-date {
+            font-style: italic;
+        }
+
+        .page-meta .page-number {
+            font-size: 10px;
+            color: #555;
+        }
