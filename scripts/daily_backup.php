@@ -1,15 +1,26 @@
 <?php
 /**
- * DAILY DATABASE BACKUP SCRIPT
- * SAFE: INSERT-only SQL
- * Run via CRON or Task Scheduler
+ * DAILY DATABASE BACKUP
+ * - Excel (multi-sheet)
+ * - SQL (insert-only, zipped)
+ * - CSV (all tables, zipped)
+ * Safe for Task Scheduler / Cron
  */
 
 require_once __DIR__ . '/../config/db.php';
 
-$backupDir = 'C:../Documents/aggresand';
-if (!is_dir($backupDir)) {
-    mkdir($backupDir, 0755, true);
+/* ---------------- CONFIG ---------------- */
+
+$BASE_DIR = 'C:/Users/Public/Documents/aggresand';
+
+$DIRS = [
+    'excel' => "$BASE_DIR/excel",
+    'sql'   => "$BASE_DIR/sql",
+    'csv'   => "$BASE_DIR/csv",
+];
+
+foreach ($DIRS as $dir) {
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
 }
 
 $tables = [
@@ -24,51 +35,120 @@ $tables = [
     'audit_log',
 ];
 
-$filename = 'backup_' . date('Y-m-d') . '.sql';
-$filePath = $backupDir . '/' . $filename;
+$ts = date('Y-m-d_His');
 
-$fh = fopen($filePath, 'w');
+/* =====================================================
+   1️⃣ EXCEL BACKUP (XML XLS – MULTI SHEET)
+===================================================== */
 
-fwrite($fh, "-- Aggresand Daily Backup\n");
-fwrite($fh, "-- Date: " . date('Y-m-d H:i:s') . "\n\n");
+$excelFile = "{$DIRS['excel']}/backup_$ts.xls";
+
+$xml  = '<?xml version="1.0"?>' . "\n";
+$xml .= '<?mso-application progid="Excel.Sheet"?>' . "\n";
+$xml .= '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">' . "\n";
 
 foreach ($tables as $table) {
-
-    $stmt = $conn->query("SELECT * FROM `$table`");
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
+    $rows = $conn->query("SELECT * FROM `$table`")->fetchAll(PDO::FETCH_ASSOC);
     if (!$rows) continue;
 
-    fwrite($fh, "-- Table: $table\n");
+    $xml .= '<Worksheet ss:Name="' . htmlspecialchars($table) . '"><Table>';
+
+    // header
+    $xml .= '<Row>';
+    foreach (array_keys($rows[0]) as $col) {
+        $xml .= '<Cell><Data ss:Type="String">' . htmlspecialchars($col) . '</Data></Cell>';
+    }
+    $xml .= '</Row>';
+
+    // rows
+    foreach ($rows as $row) {
+        $xml .= '<Row>';
+        foreach ($row as $val) {
+            $type = is_numeric($val) ? 'Number' : 'String';
+            $xml .= '<Cell><Data ss:Type="' . $type . '">' .
+                    htmlspecialchars((string)$val) .
+                    '</Data></Cell>';
+        }
+        $xml .= '</Row>';
+    }
+
+    $xml .= '</Table></Worksheet>';
+}
+
+$xml .= '</Workbook>';
+
+file_put_contents($excelFile, $xml);
+
+/* =====================================================
+   2️⃣ SQL BACKUP (INSERT-ONLY → ZIP)
+===================================================== */
+
+$sqlFile = "{$DIRS['sql']}/backup_$ts.sql";
+$fh = fopen($sqlFile, 'w');
+
+fwrite($fh, "-- Aggresand SQL Backup\n-- $ts\n\n");
+
+foreach ($tables as $table) {
+    $rows = $conn->query("SELECT * FROM `$table`")->fetchAll(PDO::FETCH_ASSOC);
+    if (!$rows) continue;
+
+    fwrite($fh, "-- TABLE: $table\n");
 
     foreach ($rows as $row) {
         $cols = array_map(fn($c) => "`$c`", array_keys($row));
         $vals = array_map([$conn, 'quote'], array_values($row));
-
-        $sql = "INSERT INTO `$table` (" . implode(',', $cols) . ")
-                VALUES (" . implode(',', $vals) . ");\n";
-
-        fwrite($fh, $sql);
+        fwrite(
+            $fh,
+            "INSERT INTO `$table` (" . implode(',', $cols) . ")
+             VALUES (" . implode(',', $vals) . ");\n"
+        );
     }
-
     fwrite($fh, "\n");
 }
-
 fclose($fh);
 
-/* OPTIONAL: ZIP IT */
-$zipPath = $filePath . '.zip';
+// zip SQL
+$sqlZip = "{$sqlFile}.zip";
 $zip = new ZipArchive();
-$zip->open($zipPath, ZipArchive::CREATE);
-$zip->addFile($filePath, basename($filePath));
+$zip->open($sqlZip, ZipArchive::CREATE);
+$zip->addFile($sqlFile, basename($sqlFile));
+$zip->close();
+unlink($sqlFile);
+
+/* =====================================================
+   3️⃣ CSV BACKUP (ALL TABLES → ZIP)
+===================================================== */
+
+$csvZip = "{$DIRS['csv']}/backup_$ts.csv.zip";
+$zip = new ZipArchive();
+$zip->open($csvZip, ZipArchive::CREATE);
+
+foreach ($tables as $table) {
+    $rows = $conn->query("SELECT * FROM `$table`")->fetchAll(PDO::FETCH_ASSOC);
+    if (!$rows) continue;
+
+    $fp = fopen('php://temp', 'w+');
+    fputcsv($fp, array_keys($rows[0]));
+    foreach ($rows as $row) fputcsv($fp, $row);
+    rewind($fp);
+
+    $zip->addFromString("$table.csv", stream_get_contents($fp));
+    fclose($fp);
+}
 $zip->close();
 
-unlink($filePath); // keep only zip
+/* =====================================================
+   4️⃣ LOG BACKUPS
+===================================================== */
 
-/* ================= LOG SUCCESS ================= */
-$conn->prepare("
-    INSERT INTO backup_log (filename)
-    VALUES (?)
-")->execute([$zipPath]);
+$log = $conn->prepare("
+    INSERT INTO backup_log (filename, type, created_by)
+    VALUES (?, ?, NULL)
+");
 
-echo "Backup created: $zipPath\n";
+$log->execute([basename($excelFile), 'excel']);
+$log->execute([basename($sqlZip),   'sql']);
+$log->execute([basename($csvZip),   'csv']);
+
+echo "Daily backup completed: $ts\n";
