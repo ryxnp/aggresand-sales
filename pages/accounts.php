@@ -260,3 +260,10 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </div>
 
 </div>
+
+<script src="js/accounts.js"></script>
+<script>
+    if (window.AccountsPage) {
+        AccountsPage.init();
+    }
+</script>
