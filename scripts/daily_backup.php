@@ -36,12 +36,13 @@ $tables = [
 ];
 
 $ts = date('Y-m-d_His');
+$PREFIX = 'AUTO_';
 
 /* =====================================================
    1️⃣ EXCEL BACKUP (XML XLS – MULTI SHEET)
 ===================================================== */
 
-$excelFile = "{$DIRS['excel']}/backup_$ts.xls";
+$excelFile = "{$DIRS['excel']}/{$PREFIX}backup_$ts.xls";
 
 $xml  = '<?xml version="1.0"?>' . "\n";
 $xml .= '<?mso-application progid="Excel.Sheet"?>' . "\n";
@@ -84,7 +85,7 @@ file_put_contents($excelFile, $xml);
    2️⃣ SQL BACKUP (INSERT-ONLY → ZIP)
 ===================================================== */
 
-$sqlFile = "{$DIRS['sql']}/backup_$ts.sql";
+$sqlFile = "{$DIRS['sql']}/{$PREFIX}backup_$ts.sql";
 $fh = fopen($sqlFile, 'w');
 
 fwrite($fh, "-- Aggresand SQL Backup\n-- $ts\n\n");
@@ -120,7 +121,7 @@ unlink($sqlFile);
    3️⃣ CSV BACKUP (ALL TABLES → ZIP)
 ===================================================== */
 
-$csvZip = "{$DIRS['csv']}/backup_$ts.csv.zip";
+$csvZip = "{$DIRS['csv']}/{$PREFIX}backup_$ts.csv.zip";
 $zip = new ZipArchive();
 $zip->open($csvZip, ZipArchive::CREATE);
 
