@@ -34,9 +34,11 @@ window.AccountsPage = (() => {
             cancelBtn.addClass("d-none");
         }
 
+        // reset on load
         resetForm();
 
-        $(".account-edit-btn").on("click", function () {
+        // ✅ DELEGATED EDIT BUTTON (FIX)
+        $(document).on("click", ".account-edit-btn", function () {
             const btn = $(this);
 
             actionFld.val("update");
@@ -55,7 +57,10 @@ window.AccountsPage = (() => {
             window.scrollTo({ top: 0, behavior: "smooth" });
         });
 
-        cancelBtn.on("click", resetForm);
+        // cancel
+        cancelBtn.on("click", function () {
+            resetForm();
+        });
     }
 
     return { init };
