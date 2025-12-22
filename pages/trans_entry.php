@@ -55,12 +55,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($action === 'create') {
                 $company_id = (int)($_POST['company_id'] ?? 0);
                 $site_id    = (int)($_POST['site_id'] ?? 0);
-                $terms_raw  = trim($_POST['terms'] ?? '');
-                $terms      = ($terms_raw !== '' ? (int)$terms_raw : null);
+                $terms = $_POST['terms'] ?? '*';
+                $allowedTerms = ['*', '15', '30', '45'];
 
                 if ($company_id <= 0) throw new Exception('Company is required for SOA');
                 if ($site_id <= 0) throw new Exception('Site is required for SOA');
-                if ($terms === null || $terms < 0) throw new Exception('Terms is required for SOA');
+                if (!in_array($terms, $allowedTerms, true)) {
+                    throw new Exception('Invalid Terms of Payment');
+                }
 
                 $audit  = audit_on_create($admin);
                 $soa_no = generate_soa_no($conn);
@@ -120,6 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $upd = $conn->prepare("
                     UPDATE statement_of_account
                     SET status = 'finalized',
+                        billing_date = CURRENT_DATE,
                         date_edited = :date_edited,
                         edited_by = :edited_by
                     WHERE soa_id = :id
@@ -171,9 +174,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $contractor_id = (int)($_POST['contractor_id'] ?? 0) ?: null;
             $customer_name = trim($_POST['customer_name'] ?? '');
-            $contact_no    = trim($_POST['contact_no'] ?? '');
-            $email         = trim($_POST['email'] ?? '');
-            $address       = trim($_POST['address'] ?? '');
+            $contact_no    = trim($_POST['contact_no'] ?? '') ?: null;
+            $email         = trim($_POST['email'] ?? '') ?: null;
+            $address       = trim($_POST['address'] ?? '') ?: null;
             $status        = $_POST['status'] ?? 'active';
 
             if ($customer_name === '') throw new Exception('Customer name is required');
@@ -277,14 +280,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Delivery date is required');
             }
 
-            $billing_date = trim($_POST['billing_date'] ?? '');
-            if ($billing_date === '') {
-                $billing_date = $delivery_date;
-            }
             $dr_no         = trim($_POST['dr_no'] ?? '');
             $po_number     = trim($_POST['po_number'] ?? '') ?: null;
-            $terms_raw     = trim($_POST['terms'] ?? '');
-            $terms         = ($terms_raw !== '' ? (int)$terms_raw : null);
             $truck_id      = (int)($_POST['truck_id'] ?? 0) ?: null;
             $material      = trim($_POST['material_name'] ?? '');
             $quantity      = (float)($_POST['quantity'] ?? 0);
@@ -355,21 +352,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $soaRow = $soaStmt->fetch(PDO::FETCH_ASSOC);
             if (!$soaRow) throw new Exception('Invalid SOA selected');
             if (($soaRow['status'] ?? '') === 'finalized') throw new Exception('SOA is finalized. Deliveries are locked.');
+            
+            // normalize once
+            $dr_no = trim((string)$dr_no);
+
+            // ================= DR NUMBER UNIQUENESS CHECK =================
+            if ($action === 'create') {
+
+                if ($dr_no !== '') {
+                    $chk = $conn->prepare("
+                        SELECT COUNT(*)
+                        FROM delivery
+                        WHERE TRIM(dr_no) = :dr_no
+                        AND is_deleted = 0
+                    ");
+                    $chk->execute([':dr_no' => $dr_no]);
+
+                    if ((int)$chk->fetchColumn() > 0) {
+                        throw new Exception('DR Number already exists. Please use a unique DR Number.');
+                    }
+                }
+
+            } elseif ($action === 'update') {
+
+                if ($id <= 0) throw new Exception('Invalid delivery ID');
+
+                // fetch old row early (needed for comparison)
+                $old = $conn->prepare("SELECT * FROM delivery WHERE del_id=:id AND is_deleted=0");
+                $old->execute([':id'=>$id]);
+                $oldData = $old->fetch(PDO::FETCH_ASSOC);
+                if (!$oldData) throw new Exception('Delivery not found');
+
+                $old_dr = trim((string)($oldData['dr_no'] ?? ''));
+
+                // only check if DR was changed
+                if ($dr_no !== '' && $dr_no !== $old_dr) {
+                    $chk = $conn->prepare("
+                        SELECT COUNT(*)
+                        FROM delivery
+                        WHERE TRIM(dr_no) = :dr_no
+                        AND del_id != :del_id
+                        AND is_deleted = 0
+                    ");
+                    $chk->execute([
+                        ':dr_no'  => $dr_no,
+                        ':del_id' => $id
+                    ]);
+
+                    if ((int)$chk->fetchColumn() > 0) {
+                        throw new Exception('DR Number already exists. Please use a unique DR Number.');
+                    }
+                }
+
+                // ✅ IMPORTANT: reuse $oldData later in update block
+            }
 
             if ($action === 'create') {
                 $audit = audit_on_create($admin);
 
                 $stmt = $conn->prepare("
-                    INSERT INTO delivery
-                        (soa_id, customer_id, delivery_date, dr_no,
-                         truck_id, billing_date, material,
-                         quantity, unit_price, po_number, terms,
-                         status, is_deleted,
-                         date_created, date_edited, created_by, edited_by)
+                    INSERT INTO delivery (
+                        soa_id, customer_id, delivery_date, dr_no,
+                        truck_id, material,
+                        quantity, unit_price, po_number,
+                        status, is_deleted,
+                        date_created, date_edited, created_by, edited_by
+                    )
                     VALUES
                         (:soa_id, :customer_id, :delivery_date, :dr_no,
-                         :truck_id, :billing_date, :material,
-                         :quantity, :unit_price, :po_number, :terms,
+                         :truck_id, :material,
+                         :quantity, :unit_price, :po_number,
                          :status, 0,
                          :date_created, :date_edited, :created_by, :edited_by)
                 ");
@@ -379,12 +431,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':delivery_date'=> $delivery_date,
                     ':dr_no'        => $dr_no,
                     ':truck_id'     => $truck_id,
-                    ':billing_date' => $billing_date ?: $delivery_date,
                     ':material'     => $material,
                     ':quantity'     => $quantity,
                     ':unit_price'   => $unit_price,
                     ':po_number'    => $po_number,
-                    ':terms'        => $terms,
                     ':status'       => $status,
                     ':date_created' => $audit['date_created'],
                     ':date_edited'  => $audit['date_edited'],
@@ -395,18 +445,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $newDelId = (int)$conn->lastInsertId();
                 audit_log('delivery', $newDelId, 'CREATE', null, $_POST, $admin);
 
+                // $_SESSION['alert'] = ['type'=>'success','message'=>'Delivery created'];
+                // header("Location: /main.php#trans_entry.php?soa_id=".$soa_id_post);
+                // exit;
                 $_SESSION['alert'] = ['type'=>'success','message'=>'Delivery created'];
-                header("Location: /main.php#trans_entry.php?soa_id=".$soa_id_post);
+
+                $insertMode = (int)($_POST['insert_mode'] ?? 0);
+
+                if ($insertMode === 1) {
+                    // stay on page, keep form values
+                    header("Location: /main.php#trans_entry.php?soa_id=".$soa_id_post."&keep=1");
+                } else {
+                    // normal save behavior
+                    header("Location: /main.php#trans_entry.php?soa_id=".$soa_id_post);
+                }
                 exit;
             }
 
             if ($action === 'update') {
                 if ($id <= 0) throw new Exception('Invalid delivery ID');
-
-                $old = $conn->prepare("SELECT * FROM delivery WHERE del_id=:id AND is_deleted=0");
-                $old->execute([':id'=>$id]);
-                $oldData = $old->fetch(PDO::FETCH_ASSOC);
-                if (!$oldData) throw new Exception('Delivery not found');
 
                 // lock if old SOA finalized
                 if (!empty($oldData['soa_id'])) {
@@ -426,12 +483,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         delivery_date= :delivery_date,
                         dr_no        = :dr_no,
                         truck_id     = :truck_id,
-                        billing_date = :billing_date,
                         material     = :material,
                         quantity     = :quantity,
                         unit_price   = :unit_price,
                         po_number    = :po_number,
-                        terms        = :terms,
                         status       = :status,
                         date_edited  = :date_edited,
                         edited_by    = :edited_by
@@ -444,12 +499,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':delivery_date'=> $delivery_date,
                     ':dr_no'        => $dr_no,
                     ':truck_id'     => $truck_id,
-                    ':billing_date' => $billing_date,
                     ':material'     => $material,
                     ':quantity'     => $quantity,
                     ':unit_price'   => $unit_price,
                     ':po_number'    => $po_number,
-                    ':terms'        => $terms,
                     ':status'       => $status,
                     ':date_edited'  => $audit['date_edited'],
                     ':edited_by'    => $audit['edited_by'],
@@ -502,10 +555,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     } catch (Exception $e) {
         $_SESSION['alert'] = ['type'=>'danger','message'=>$e->getMessage()];
-        // keep SOA if any
-        $redir = $redirectUrl . ($soa_id > 0 ? '?soa_id='.$soa_id : '');
-        header("Location: $redir");
+
+        $query = [];
+        if ($soa_id > 0) $query[] = 'soa_id=' . $soa_id;
+        if (!empty($_POST['insert_mode'])) $query[] = 'keep=1';
+
+        $qs = $query ? '?' . implode('&', $query) : '';
+
+        header("Location: {$redirectUrl}{$qs}");
         exit;
+
     }
 
     // fallback
@@ -606,31 +665,20 @@ require_once __DIR__ . '/../helpers/alerts.php';
 
 $q              = trim($_GET['q'] ?? '');
 $statusFilter   = $_GET['status_filter'] ?? '';
-$companyFilter  = isset($_GET['company_filter']) ? (int)$_GET['company_filter'] : 0;
 $siteFilter     = isset($_GET['site_filter']) ? (int)$_GET['site_filter'] : 0;
 $materialFilter = $_GET['material_filter'] ?? '';
-$dateFrom       = $_GET['del_date_from'] ?? '';
-$dateTo         = $_GET['del_date_to'] ?? '';
+$truckFilter = isset($_GET['truck_filter']) ? (int)$_GET['truck_filter'] : 0;
 
 $where  = "d.is_deleted = 0";
 $params = [];
 
-// SOA scoped table: if no SOA, show none
+// SOA is REQUIRED to show deliveries
 if ($soa_id > 0) {
     $where .= " AND d.soa_id = :soa_id";
     $params[':soa_id'] = $soa_id;
 } else {
+    // hard stop — no SOA, no rows
     $where .= " AND 1 = 0";
-}
-
-// date range
-if ($dateFrom !== '') {
-    $where .= " AND d.delivery_date >= :date_from";
-    $params[':date_from'] = $dateFrom;
-}
-if ($dateTo !== '') {
-    $where .= " AND d.delivery_date <= :date_to";
-    $params[':date_to'] = $dateTo;
 }
 
 // status
@@ -639,20 +687,17 @@ if ($statusFilter !== '') {
     $params[':status'] = $statusFilter;
 }
 
-// company/site filter via customer
-if ($companyFilter > 0) {
-    $where .= " AND c.company_id = :company_id";
-    $params[':company_id'] = $companyFilter;
-}
-if ($siteFilter > 0) {
-    $where .= " AND c.site_id = :site_id";
-    $params[':site_id'] = $siteFilter;
-}
 
 // material filter
 if ($materialFilter !== '') {
     $where .= " AND d.material = :material_filter";
     $params[':material_filter'] = $materialFilter;
+}
+
+// truck filter
+if ($truckFilter > 0) {
+    $where .= " AND d.truck_id = :truck_id";
+    $params[':truck_id'] = $truckFilter;
 }
 
 // free text
@@ -698,12 +743,12 @@ $listSql = "
         d.delivery_date,
         d.dr_no,
         d.billing_date,
+        d.truck_id,
         d.material,
         d.quantity,
         d.unit_price,
         d.status,
         d.po_number,
-        d.terms,
         c.customer_id,
         c.customer_name,
         co.company_name,
@@ -730,11 +775,8 @@ $queryBase = http_build_query([
     'soa_id'         => $soa_id,
     'q'              => $q,
     'status_filter'  => $statusFilter,
-    'company_filter' => $companyFilter,
-    'site_filter'    => $siteFilter,
     'material_filter'=> $materialFilter,
-    'del_date_from'  => $dateFrom,
-    'del_date_to'    => $dateTo,
+    'truck_filter'   => $truckFilter,
 ]);
 ?>
 
@@ -755,7 +797,7 @@ $queryBase = http_build_query([
 
             <div style="min-width:320px;">
                 <label class="form-label mb-1">Statement of Account</label>
-                <select id="soa_select" class="form-select">
+                <select id="soa_select" class="form-select select2-field">
                     <option value="">-- Select SOA --</option>
                     <?php foreach ($soas as $s): ?>
                         <option value="<?= (int)$s['soa_id'] ?>"
@@ -785,8 +827,12 @@ $queryBase = http_build_query([
             </div>
 
             <div class="ms-auto d-flex gap-2">
-                <button type="button" class="btn btn-outline-primary" id="btn_open_create_soa"
-                        data-bs-toggle="modal" data-bs-target="#soaCreateModal">
+                <button type="button"
+                        class="btn btn-outline-primary"
+                        id="btn_open_create_soa"
+                        data-bs-toggle="modal"
+                        data-bs-target="#soaCreateModal"
+                        <?= $soa ? 'disabled' : '' ?>>
                     Create New SOA
                 </button>
 
@@ -892,7 +938,7 @@ $queryBase = http_build_query([
                                 <input type="text" name="customer_name" id="customer_name" class="form-control" required>
                             </div>
 
-                            <div class="mb-3">
+                            <!-- <div class="mb-3">
                                 <label class="form-label">Contact No</label>
                                 <input type="text" name="contact_no" id="customer_contact_no" class="form-control">
                             </div>
@@ -905,7 +951,7 @@ $queryBase = http_build_query([
                             <div class="mb-3">
                                 <label class="form-label">Address</label>
                                 <input type="text" name="address" id="customer_address" class="form-control">
-                            </div>
+                            </div> -->
 
                             <div class="mb-3">
                                 <label class="form-label">Status</label>
@@ -954,10 +1000,13 @@ $queryBase = http_build_query([
 
                     <div class="card-body">
                         <form id="delivery-form" method="POST" action="pages/trans_entry.php" <?= $soaLocked ? 'class="opacity-50"' : '' ?>>
+                            <fieldset id="delivery-fieldset">
                             <input type="hidden" name="form_type" value="delivery">
                             <input type="hidden" name="action" id="delivery_action" value="create">
                             <input type="hidden" name="del_id" id="del_id">
                             <input type="hidden" name="soa_id" id="soa_id" value="<?= (int)$soa_id ?>">
+                            <input type="hidden" name="insert_mode" id="insert_mode" value="0">
+                            <input type="hidden" name="keep" id="delivery_keep" value="0">
 
                             <div class="mb-3">
                                 <label class="form-label">Customer</label>
@@ -974,10 +1023,6 @@ $queryBase = http_build_query([
                                     <label class="form-label">Delivery Date</label>
                                     <input type="date" name="delivery_date" id="delivery_date" class="form-control" required>
                                 </div>
-                                <div class="col">
-                                    <label class="form-label">Billing Date</label>
-                                    <input type="date" name="billing_date" id="billing_date" class="form-control">
-                                </div>
                             </div>
 
                             <div class="row mb-3">
@@ -989,18 +1034,16 @@ $queryBase = http_build_query([
                                     <label class="form-label">PO Number</label>
                                     <input type="text" name="po_number" id="po_number" class="form-control">
                                 </div>
-                                <div class="col">
-                                    <label class="form-label">Terms (Days)</label>
-                                    <input type="number" name="terms" id="terms" class="form-control">
-                                </div>
                             </div>
 
                             <div class="mb-3">
                                 <label class="form-label">Truck</label>
-                                <select name="truck_id" id="truck_id" class="form-select select2-field">
+                                <select id="truck_id" name="truck_id" class="form-select select2-field">
                                     <option value="">-- Select Truck --</option>
-                                    <?php foreach ($trucks as $tr): ?>
-                                        <option value="<?= (int)$tr['truck_id'] ?>"><?= htmlspecialchars($tr['plate_no']) ?></option>
+                                    <?php foreach ($trucks as $t): ?>
+                                        <option value="<?= $t['truck_id'] ?>">
+                                            <?= htmlspecialchars($t['plate_no']) ?>
+                                        </option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -1039,7 +1082,11 @@ $queryBase = http_build_query([
                             <button type="submit" class="btn btn-success" <?= ($soa && ($soa['status'] ?? '') === 'finalized') ? 'disabled' : '' ?> id="delivery-submit-btn">
                                 Save Delivery
                             </button>
+                            <button type="button" class="btn btn-outline-primary ms-2" id="delivery-insert-btn">
+                                Insert
+                            </button>
                             <button type="button" class="btn btn-secondary d-none" id="delivery-cancel-edit-btn">Cancel</button>
+                            </fieldset>
                         </form>
                     </div>
 
@@ -1063,20 +1110,17 @@ $queryBase = http_build_query([
         <div class="card-header">
             <form class="row g-2 align-items-end trans-filter-form flex-nowrap" method="GET" action="">
     <input type="hidden" name="soa_id" value="<?= (int)$soa_id ?>">
-
-    <div class="col-lg-2 col-md-3 col-sm-6">
-        <label class="form-label">Delivery From</label>
-        <input type="date" name="del_date_from" class="form-control"
-               value="<?= htmlspecialchars($dateFrom) ?>">
+    <input type="hidden" name="form_type" value="filter">
+    <!-- SEARCH (big) -->
+    <div class="col-lg-5 col-md-12">
+        <label class="form-label">Search</label>
+        <input type="text" name="q" class="form-control"
+               value="<?= htmlspecialchars($q) ?>"
+               placeholder="DR / Customer / Material / Truck / PO">
     </div>
 
-    <div class="col-lg-2 col-md-3 col-sm-6">
-        <label class="form-label">Delivery To</label>
-        <input type="date" name="del_date_to" class="form-control"
-               value="<?= htmlspecialchars($dateTo) ?>">
-    </div>
-
-    <div class="col-lg-2 col-md-3 col-sm-6">
+    <!-- MATERIAL -->
+    <div class="col-lg-2 col-md-4">
         <label class="form-label">Material</label>
         <select name="material_filter" class="form-select">
             <option value="">All</option>
@@ -1089,28 +1133,36 @@ $queryBase = http_build_query([
         </select>
     </div>
 
-    <div class="col-lg-2 col-md-3 col-sm-6">
-        <label class="form-label">Status</label>
-        <select name="status_filter" class="form-select">
+    <!-- TRUCK -->
+    <div class="col-lg-2 col-md-4">
+        <label class="form-label">Truck</label>
+        <select name="truck_filter" class="form-select">
             <option value="">All</option>
-            <option value="pending"   <?= $statusFilter === 'pending' ? 'selected' : '' ?>>Pending</option>
-            <option value="delivered" <?= $statusFilter === 'delivered' ? 'selected' : '' ?>>Delivered</option>
-            <option value="cancelled" <?= $statusFilter === 'cancelled' ? 'selected' : '' ?>>Cancelled</option>
+            <?php foreach ($trucks as $t): ?>
+                <option value="<?= (int)$t['truck_id'] ?>"
+                    <?= $truckFilter === (int)$t['truck_id'] ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($t['plate_no']) ?>
+                </option>
+            <?php endforeach; ?>
         </select>
     </div>
 
-    <div class="col-lg-3 col-md-6 col-sm-12">
-        <label class="form-label">Search</label>
-        <input type="text" name="q" class="form-control"
-               value="<?= htmlspecialchars($q) ?>"
-               placeholder="DR / Customer / Company / Truck / Material / PO">
+    <!-- STATUS -->
+    <div class="col-lg-2 col-md-4">
+        <label class="form-label">Status</label>
+        <select name="status_filter" class="form-select">
+            <option value="">All</option>
+            <option value="pending"   <?= $statusFilter==='pending'?'selected':'' ?>>Pending</option>
+            <option value="delivered" <?= $statusFilter==='delivered'?'selected':'' ?>>Delivered</option>
+            <option value="cancelled" <?= $statusFilter==='cancelled'?'selected':'' ?>>Cancelled</option>
+        </select>
     </div>
 
-    <div class="col-lg-1 col-md-3 col-sm-6">
+    <!-- APPLY -->
+    <div class="col-lg-1">
         <button class="btn btn-primary w-100">Apply</button>
     </div>
 </form>
-
         </div>
 
         <div class="card-body table-responsive">
@@ -1142,21 +1194,20 @@ $queryBase = http_build_query([
                             data-del-id="<?= (int)$r['del_id'] ?>"
                             data-customer-id="<?= (int)$r['customer_id'] ?>"
                             data-delivery-date="<?= htmlspecialchars($r['delivery_date']) ?>"
-                            data-billing-date="<?= htmlspecialchars($r['billing_date']) ?>"
+                            data-truck-id="<?= (int)$r['truck_id'] ?>"
                             data-dr-no="<?= htmlspecialchars($r['dr_no'], ENT_QUOTES) ?>"
                             data-material="<?= htmlspecialchars($r['material'], ENT_QUOTES) ?>"
                             data-quantity="<?= htmlspecialchars($r['quantity']) ?>"
                             data-unit-price="<?= htmlspecialchars($r['unit_price']) ?>"
                             data-status="<?= htmlspecialchars($r['status']) ?>"
                             data-po="<?= htmlspecialchars($r['po_number'] ?? '', ENT_QUOTES) ?>"
-                            data-terms="<?= htmlspecialchars($r['terms'] ?? '', ENT_QUOTES) ?>"
                         >
                             <td><?= htmlspecialchars($r['dr_no']) ?></td>
                             <td><?= htmlspecialchars($r['delivery_date']) ?></td>
                             <td><?= htmlspecialchars($r['customer_name']) ?></td>
                             <td><?= htmlspecialchars($r['company_name']) ?></td>
                             <td><?= htmlspecialchars($r['site_name']) ?></td>
-                            <td><?= htmlspecialchars($r['plate_no']) ?></td>
+                            <td class="truck-plate"><?= htmlspecialchars($r['plate_no'] ?? '') ?></td>
                             <td><?= htmlspecialchars($r['material']) ?></td>
                             <td><?= htmlspecialchars($r['quantity']) ?></td>
                             <td><?= number_format((float)$r['unit_price'], 2) ?></td>
@@ -1241,8 +1292,16 @@ $queryBase = http_build_query([
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Terms (Days)</label>
-                            <input type="number" name="terms" class="form-control" placeholder="e.g. 30" required>
+                            <label class="form-label">Terms of Payment</label>
+                            <select name="terms" class="form-select">
+                                <option value="*" selected>*</option>
+                                <option value="15">15 Days</option>
+                                <option value="30">30 Days</option>
+                                <option value="45">45 Days</option>
+                            </select>
+                            <div class="form-text">
+                                * = No cash payment will be accepted
+                            </div>
                         </div>
 
                         <div class="alert alert-secondary mb-0">
@@ -1264,6 +1323,9 @@ $queryBase = http_build_query([
 <script>
 window.currentSOAStatus = <?= json_encode($soa['status'] ?? null) ?>;
 window.currentSOAId     = <?= json_encode($soa_id) ?>;
+
+window.SOA_STATUS_MAP = <?= json_encode(
+  array_column($soas, 'status', 'soa_id')
+) ?>;
+
 </script>
-
-

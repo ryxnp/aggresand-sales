@@ -48,3 +48,16 @@ window.ReportsPage = (() => {
     return { init };
 
 })();
+
+document.addEventListener("DOMContentLoaded", () => {
+    const dateInput = document.getElementById("billing_date");
+    if (!dateInput) return;
+
+    dateInput.addEventListener("change", () => {
+        const date = dateInput.value;
+        if (!date) return;
+
+        // Update hash without reloading
+        window.location.hash = `reports.php&billing_date=${date}`;
+    });
+});

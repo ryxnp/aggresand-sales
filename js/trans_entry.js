@@ -47,6 +47,7 @@ window.TransEntryPage = (() => {
             formTitle.text("Customer");
             submitBtn.text("Save Customer");
             cancelBtn.addClass("d-none");
+            $("#insert_mode").val("0");
         }
 
         resetForm();
@@ -63,7 +64,7 @@ window.TransEntryPage = (() => {
 
         const customerSel = $("#delivery_customer_id");
         const deliveryDate= $("#delivery_date");
-        const billingDate = $("#billing_date");
+        // const billingDate = $("#billing_date");
         const drNo        = $("#dr_no");
         const poNumber    = $("#po_number");
         const terms       = $("#terms");
@@ -78,7 +79,12 @@ window.TransEntryPage = (() => {
         const submitBtn   = $("#delivery-submit-btn");
         const cancelBtn   = $("#delivery-cancel-edit-btn");
 
-        function resetForm() {
+        function resetForm(force = false) {
+            if ($("#insert_mode").val() === "1" && !force) {
+                $("#insert_mode").val("0");
+                return;
+            }
+
             actionFld.val("create");
             idFld.val("");
 
@@ -86,7 +92,7 @@ window.TransEntryPage = (() => {
 
             customerSel.val("").trigger("change");
             deliveryDate.val("");
-            billingDate.val("");
+            // billingDate.val("");
             drNo.val("");
             poNumber.val("");
             terms.val("");
@@ -101,7 +107,9 @@ window.TransEntryPage = (() => {
             formTitle.text("Delivery");
             submitBtn.text("Save Delivery");
             cancelBtn.addClass("d-none");
+            $("#delivery-insert-btn").removeClass("d-none");
         }
+
 
         function updateTotal() {
             const q  = parseFloat(quantity.val()) || 0;
@@ -131,12 +139,15 @@ window.TransEntryPage = (() => {
 
         // Edit delivery from row button
         $(".trans-btn-edit-delivery").on("click", function () {
+            // ✅ DEFINE ROW FIRST
             const row = $(this).closest(".delivery-row");
 
+            // 🔍 DEBUG (KEEP THIS FOR NOW)
+            console.log("EDIT TRUCK ID =", row.data("truck-id"));
             const delId       = row.data("del-id");
             const cid         = row.data("customer-id");
             const delDate     = row.data("delivery-date");
-            const billDate    = row.data("billing-date");
+            const truckIdRaw = row.data("truck-id");
             const dr          = row.data("dr-no");
             const material    = row.data("material");
             const qty         = row.data("quantity");
@@ -152,13 +163,26 @@ window.TransEntryPage = (() => {
             customerSel.val(String(cid)).trigger("change");
 
             deliveryDate.val(delDate || "");
-            billingDate.val(billDate || "");
+            // billingDate.val(billDate || "");
             drNo.val(dr || "");
             poNumber.val(po);
             terms.val(termsVal);
             quantity.val(qty || "");
             unitPrice.val(price || "");
-            statusSel.val(stat || "pending");
+            
+            // STATUS
+            const statusVal = (row.data("status") || "").toString().toLowerCase();
+            statusSel.val(statusVal).trigger("change");
+            
+            // ===================== FIX TRUCK SELECTION =====================
+            const truckId = row.data("truck-id");
+
+            if (truckId && truckId !== 0) {
+                truckSel.val(String(truckId));
+                truckSel.trigger("change.select2");
+            } else {
+                truckSel.val("").trigger("change");
+            }
 
             // Try to select matching material option by its text
             let found = false;
@@ -179,10 +203,62 @@ window.TransEntryPage = (() => {
             submitBtn.text("Update Delivery");
             formTitle.text("Edit Delivery #" + delId);
             cancelBtn.removeClass("d-none");
+            $("#delivery-insert-btn").addClass("d-none");
 
             $("#deliveryFormCollapse").collapse("show");
             window.scrollTo({ top: 0, behavior: "smooth" });
         });
+
+        // INSERT MODE (do not clear form)
+        $("#delivery-insert-btn").on("click", function () {
+        if ($(this).prop("disabled")) return;
+
+        // cache current form values
+        const data = {};
+        $("#delivery-form")
+            .find("input, select, textarea")
+            .each(function () {
+                if (this.name) {
+                    data[this.name] = $(this).val();
+                }
+            });
+
+        sessionStorage.setItem("delivery_insert_cache", JSON.stringify(data));
+
+        $("#delivery_action").val("create");
+        $("#del_id").val("");
+        $("#insert_mode").val("1");
+
+        $("#delivery-form")[0].submit();
+    });
+
+        // RESTORE FORM AFTER INSERT (post-reload)
+        const cached = sessionStorage.getItem("delivery_insert_cache");
+        if (cached) {
+            const data = JSON.parse(cached);
+
+            Object.keys(data).forEach(name => {
+                const $el = $(`[name="${name}"]`);
+                if ($el.length) {
+                    $el.val(data[name]).trigger("change");
+                }
+            });
+
+            sessionStorage.removeItem("delivery_insert_cache");
+
+            // force form open
+            $("#deliveryFormCollapse").collapse("show");
+
+            // ensure create mode
+            $("#delivery_action").val("create");
+            $("#del_id").val("");
+
+            // recalc total
+            const q = parseFloat($("#quantity").val()) || 0;
+            const p = parseFloat($("#unit_price").val()) || 0;
+            $("#total_amount").val((q * p).toFixed(2));
+        }
+
 
         cancelBtn.on("click", resetForm);
     }
@@ -263,87 +339,76 @@ function initCollapseToggles() {
 }
 
 function initSOABar() {
-  const $soaSelect = $('#soa_select');
-  const $soaIdHidden = $('#soa_id');
-  const $badge = $('#soa_status_badge');
-  const $btnFinalize = $('#btn_finalize_soa');
-  const $btnPrint = $('#btn_print_soa');
-  const $btnCreate = $('#btn_open_create_soa');
+        const $soaSelect = $('#soa_select');
+        const $soaHidden = $('#soa_id');
+        const $badge = $('#soa_status_badge');
+        const $btnFinalize = $('#btn_finalize_soa');
+        const $btnPrint = $('#btn_print_soa');
+        const $btnCreate = $('#btn_open_create_soa');
 
-  function updateHash(soaId) {
-    if (!soaId) {
-      history.replaceState(
-        { page: 'trans_entry.php' },
-        '',
-        '#trans_entry.php'
-      );
-    } else {
-      history.replaceState(
-        { page: 'trans_entry.php', soa_id: soaId },
-        '',
-        '#trans_entry.php?soa_id=' + encodeURIComponent(soaId)
-      );
+        function getSOAFromHash() {
+            const q = window.location.hash.split('?')[1];
+            return q ? new URLSearchParams(q).get('soa_id') : '';
+        }
+
+        function disableDelivery(disabled) {
+            $('#delivery-fieldset').prop('disabled', disabled);
+            $('#delivery-form').toggleClass('opacity-50', disabled);
+        }
+
+        function setBadge(status) {
+            $badge.removeClass();
+            if (!status) {
+                $badge.addClass('badge bg-secondary').text('NO SOA');
+            } else if (status === 'finalized') {
+                $badge.addClass('badge bg-success').text('FINALIZED');
+            } else {
+                $badge.addClass('badge bg-warning text-dark').text('DRAFT');
+            }
+        }
+
+        function applySOAState(soaId) {
+            const status = window.SOA_STATUS_MAP?.[soaId] || '';
+
+            $soaHidden.val(soaId || '');
+            setBadge(status);
+
+            const isFinal = status === 'finalized';
+            disableDelivery(!soaId || isFinal);
+
+            $btnFinalize.prop('disabled', !soaId || isFinal);
+            $btnCreate.prop('disabled', !!soaId);
+
+            if (soaId && isFinal) {
+                $btnPrint
+                    .attr('href', 'pages/reports_print.php?soa_id=' + soaId)
+                    .css({ pointerEvents: 'auto', opacity: 1 });
+            } else {
+                $btnPrint
+                    .attr('href', '#')
+                    .css({ pointerEvents: 'none', opacity: 0.6 });
+            }
+        }
+
+        $soaSelect.on('change', function () {
+            const soaId = this.value || '';
+            const current = getSOAFromHash();
+            if (soaId === current) return;
+
+            history.replaceState(null, '', '#trans_entry.php' + (soaId ? '?soa_id=' + soaId : ''));
+            window.loadPage?.('trans_entry.php', soaId ? 'soa_id=' + soaId : '');
+        });
+
+        // INITIAL LOAD
+        const initialSOA = getSOAFromHash();
+        if (initialSOA) {
+            $soaSelect.val(initialSOA).trigger('change.select2');
+        }
+        applySOAState($soaSelect.val());
+
+        $btnFinalize.on('click', function () {
+            if (!confirm('Finalize this SOA?\nThis cannot be undone.')) return;
+            this.closest('form').submit();
+        });
     }
-  }
-
-  function setSOAState(soaId) {
-  if (!soaId) {
-    $soaIdHidden.val('');
-    disableDeliveryUI(true);
-    return;
-  }
-
-    $soaIdHidden.val(soaId);
-    disableDeliveryUI(false);
-  }
-
-  function disableDeliveryUI(disabled) {
-    const $form = $('#delivery-form');
-    $form.find('input,select,button').prop('disabled', disabled);
-
-    $('#deliveryFormCollapse')
-      .closest('.card')
-      .find('[data-bs-toggle="collapse"]')
-      .prop('disabled', false);
-
-    $('#delivery-cancel-edit-btn').prop('disabled', false);
-
-    $('#delivery-form-title').text(
-      disabled ? 'Delivery (Select SOA first)' : 'Delivery'
-    );
-  }
-
-  // 🔁 SOA SELECT CHANGE
-  $soaSelect.on('change', function () {
-    const soaId = this.value || '';
-
-    setSOAState(soaId);
-    updateHash(soaId);
-
-    if (typeof window.loadPage === 'function') {
-      window.loadPage(
-        'trans_entry.php',
-        soaId ? 'soa_id=' + encodeURIComponent(soaId) : ''
-      );
-    }
-  });
-
-  // INITIAL LOAD
-  setSOAState($soaSelect.val());
-
-  // ================= FINALIZE BUTTON HANDLER =================
-$btnFinalize.on('click', function () {
-    if ($(this).prop('disabled')) return;
-
-    if (!confirm('Finalize this SOA?\n\nThis will lock all deliveries and cannot be undone.')) {
-        return;
-    }
-
-    // prevent double submit
-    $(this).prop('disabled', true);
-
-    // submit the parent form
-    $(this).closest('form')[0].submit();
-});
-}
 
