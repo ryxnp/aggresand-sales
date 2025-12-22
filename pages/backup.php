@@ -23,13 +23,15 @@ $tables = [
     'audit_log',
 ];
 
+$BASE_BACKUP_DIR = 'C:\Users\Public\Documents\aggresand';
+
 /* ================= SQL ZIP BACKUP ================= */
 if (isset($_GET['action']) && $_GET['action'] === 'backup_zip') {
 
-    $dir = __DIR__ . '/../backup/sql/';
+    $dir = $BASE_BACKUP_DIR . '/sql/';
     if (!is_dir($dir)) mkdir($dir, 0777, true);
 
-    $filename = 'backup_sql_' . date('Ymd_His') . '.zip';
+    $filename = 'MANUAL_sql_' . date('Ymd_His') . '.zip';
     $path = $dir . $filename;
 
     $zip = new ZipArchive();
@@ -56,21 +58,24 @@ if (isset($_GET['action']) && $_GET['action'] === 'backup_zip') {
         VALUES (?, 'sql', ?)
     ")->execute([$filename, $adminId]);
 
-    header('Content-Type: application/zip');
-    header('Content-Disposition: attachment; filename="'.$filename.'"');
-    readfile($path);
+    $_SESSION['alert'] = [
+        'type'    => 'success',
+        'message' => "SQL backup completed successfully.<br><small>Saved to: $path</small>"
+    ];
+
+    header("Location: /main.php#backup.php");
     exit;
 }
 
 /* ================= CSV BACKUP ================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'backup_csv') {
 
-    $dir = __DIR__ . '/../backup/csv/';
+    $dir = $BASE_BACKUP_DIR . '/csv/';
     if (!is_dir($dir)) mkdir($dir, 0777, true);
 
     $selected = $_POST['tables'] ?? $tables;
 
-    $filename = 'backup_csv_' . date('Ymd_His') . '.zip';
+    $filename = 'MANUAL_csv_' . date('Ymd_His') . '.zip';
     $path = $dir . $filename;
 
     $zip = new ZipArchive();
@@ -98,9 +103,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'backu
         VALUES (?, 'csv', ?)
     ")->execute([$filename, $adminId]);
 
-    header('Content-Type: application/zip');
-    header('Content-Disposition: attachment; filename="'.$filename.'"');
-    readfile($path);
+    $_SESSION['alert'] = [
+        'type'    => 'success',
+        'message' => "CSV backup completed successfully.<br><small>Saved to: $path</small>"
+    ];
+
+    header("Location: /main.php#backup.php");
     exit;
 }
 
@@ -155,6 +163,14 @@ $history = $conn->query("
 
 <div class="container-fluid">
     <h2 class="mb-4">Database Backup & Restore</h2>
+
+    <?php if (!empty($_SESSION['alert'])): ?>
+        <div class="alert alert-<?= $_SESSION['alert']['type'] ?> alert-dismissible fade show" role="alert">
+            <?= $_SESSION['alert']['message'] ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <?php unset($_SESSION['alert']); ?>
+    <?php endif; ?>
 
     <!-- BACKUP ALL -->
     <div class="card mb-4">
