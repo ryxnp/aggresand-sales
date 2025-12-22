@@ -158,6 +158,7 @@ $history = $conn->query("
     FROM backup_log b
     LEFT JOIN admin a ON a.admin_id = b.created_by
     ORDER BY b.created_at DESC
+    LIMIT 10
 ")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
@@ -261,7 +262,7 @@ $history = $conn->query("
                     <tr><td colspan="5" class="text-center">No backups found</td></tr>
                 <?php else: foreach ($history as $h): ?>
                     <tr>
-                        <td><?= $h['backup_id'] ?></td>
+                        <td><?= $h['id'] ?></td>
                         <td><?= htmlspecialchars($h['filename']) ?></td>
                         <td><?= strtoupper($h['type']) ?></td>
                         <td><?= htmlspecialchars($h['username'] ?? 'System') ?></td>
