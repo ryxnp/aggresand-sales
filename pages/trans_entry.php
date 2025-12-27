@@ -55,15 +55,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($action === 'create') {
                 $company_id = (int)($_POST['company_id'] ?? 0);
                 $site_id    = (int)($_POST['site_id'] ?? 0);
-                $terms = $_POST['terms'] ?? '*';
-                $allowedTerms = ['*', '15', '30', '45'];
+                
+                $termsSelect = $_POST['terms_select'] ?? '*';
+
+                if ($termsSelect === 'custom') {
+                    $termsCustom = trim($_POST['terms_custom'] ?? '');
+
+                    if ($termsCustom === '' || !ctype_digit($termsCustom)) {
+                        throw new Exception('Custom terms must be a valid number of days');
+                    }
+
+                    $terms = (string)(int)$termsCustom;
+
+                    if ((int)$terms > 365) {
+                        throw new Exception('Terms cannot exceed 365 days');
+                    }
+
+                } else {
+                    $allowed = ['*', '15', '30', '45'];
+
+                    if (!in_array($termsSelect, $allowed, true)) {
+                        throw new Exception('Invalid Terms of Payment');
+                    }
+
+                    $terms = $termsSelect;
+                }
+
 
                 if ($company_id <= 0) throw new Exception('Company is required for SOA');
                 if ($site_id <= 0) throw new Exception('Site is required for SOA');
-                if (!in_array($terms, $allowedTerms, true)) {
-                    throw new Exception('Invalid Terms of Payment');
-                }
-
                 $audit  = audit_on_create($admin);
                 $soa_no = generate_soa_no($conn);
 
@@ -267,13 +287,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        /* ===================== DELIVERY (4C AUTO-CREATE SOA) ===================== */
+        /* ===================== DELIVERY ===================== */
         if ($formType === 'delivery') {
 
             $action = $_POST['action'] ?? 'create';
             $id     = (int)($_POST['del_id'] ?? 0);
 
             $soa_id_post   = (int)($_POST['soa_id'] ?? 0); // may be 0 (4C)
+            if ($soa_id_post <= 0) {
+                throw new Exception('Please select an SOA before adding deliveries');
+            }
             $customer_id   = (int)($_POST['delivery_customer_id'] ?? 0);
             $delivery_date = trim($_POST['delivery_date'] ?? '');
             if ($delivery_date === '') {
@@ -290,56 +313,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($customer_id <= 0) throw new Exception('Customer is required');
             if ($delivery_date === '') throw new Exception('Delivery date is required');
-
-            // 4C: if no SOA selected, auto-create SOA based on customer's company + site
-            if ($soa_id_post <= 0) {
-                $cu = $conn->prepare("SELECT customer_id, company_id, site_id FROM customer WHERE customer_id=:id AND is_deleted=0 LIMIT 1");
-                $cu->execute([':id' => $customer_id]);
-                $cuRow = $cu->fetch(PDO::FETCH_ASSOC);
-                if (!$cuRow) throw new Exception('Customer not found');
-
-                $company_id_for_soa = (int)($cuRow['company_id'] ?? 0);
-                $site_id_for_soa    = (int)($cuRow['site_id'] ?? 0);
-
-                if ($company_id_for_soa <= 0 || $site_id_for_soa <= 0) {
-                    throw new Exception('Customer must have Company and Site to auto-create SOA');
-                }
-                if ($terms === null || $terms < 0) {
-                    throw new Exception('Terms is required to auto-create SOA');
-                }
-
-                $audit  = audit_on_create($admin);
-                $soa_no = generate_soa_no($conn);
-
-                $stmt = $conn->prepare("
-                    INSERT INTO statement_of_account
-                        (soa_no, company_id, site_id, terms, status, is_deleted,
-                         date_created, date_edited, created_by, edited_by)
-                    VALUES
-                        (:soa_no, :company_id, :site_id, :terms, 'draft', 0,
-                         :date_created, :date_edited, :created_by, :edited_by)
-                ");
-                $stmt->execute([
-                    ':soa_no'       => $soa_no,
-                    ':company_id'   => $company_id_for_soa,
-                    ':site_id'      => $site_id_for_soa,
-                    ':terms'        => $terms,
-                    ':date_created' => $audit['date_created'],
-                    ':date_edited'  => $audit['date_edited'],
-                    ':created_by'   => $audit['created_by'],
-                    ':edited_by'    => $audit['edited_by'],
-                ]);
-
-                $soa_id_post = (int)$conn->lastInsertId();
-
-                audit_log('statement_of_account', $soa_id_post, 'CREATE', null, [
-                    'soa_no'     => $soa_no,
-                    'company_id' => $company_id_for_soa,
-                    'site_id'    => $site_id_for_soa,
-                    'terms'      => $terms,
-                    'status'     => 'draft',
-                ], $admin);
-            }
 
             // SOA validation (must exist)
             $soaStmt = $conn->prepare("
@@ -938,21 +911,6 @@ $queryBase = http_build_query([
                                 <input type="text" name="customer_name" id="customer_name" class="form-control" required>
                             </div>
 
-                            <!-- <div class="mb-3">
-                                <label class="form-label">Contact No</label>
-                                <input type="text" name="contact_no" id="customer_contact_no" class="form-control">
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">Email</label>
-                                <input type="email" name="email" id="customer_email" class="form-control">
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">Address</label>
-                                <input type="text" name="address" id="customer_address" class="form-control">
-                            </div> -->
-
                             <div class="mb-3">
                                 <label class="form-label">Status</label>
                                 <select name="status" id="customer_status" class="form-select">
@@ -989,8 +947,7 @@ $queryBase = http_build_query([
 
                     <?php if (!$soa): ?>
                         <div class="alert alert-warning m-3">
-                            No SOA selected. You can still encode delivery (4C will auto-create SOA on save),
-                            but it’s recommended to select/create SOA first.
+                            Please select or create an SOA to enable delivery entry.
                         </div>
                     <?php elseif (($soa['status'] ?? '') === 'finalized'): ?>
                         <div class="alert alert-info m-3">
@@ -1000,7 +957,8 @@ $queryBase = http_build_query([
 
                     <div class="card-body">
                         <form id="delivery-form" method="POST" action="pages/trans_entry.php" <?= $soaLocked ? 'class="opacity-50"' : '' ?>>
-                            <fieldset id="delivery-fieldset">
+                            <fieldset id="delivery-fieldset"
+                            <?= $soaLocked ? 'disabled' : '' ?>>
                             <input type="hidden" name="form_type" value="delivery">
                             <input type="hidden" name="action" id="delivery_action" value="create">
                             <input type="hidden" name="del_id" id="del_id">
@@ -1082,7 +1040,10 @@ $queryBase = http_build_query([
                             <button type="submit" class="btn btn-success" <?= ($soa && ($soa['status'] ?? '') === 'finalized') ? 'disabled' : '' ?> id="delivery-submit-btn">
                                 Save Delivery
                             </button>
-                            <button type="button" class="btn btn-outline-primary ms-2" id="delivery-insert-btn">
+                            <button type="button"
+                                class="btn btn-outline-primary ms-2"
+                                id="delivery-insert-btn"
+                                <?= $soaLocked ? 'disabled' : '' ?>>
                                 Insert
                             </button>
                             <button type="button" class="btn btn-secondary d-none" id="delivery-cancel-edit-btn">Cancel</button>
@@ -1293,16 +1254,24 @@ $queryBase = http_build_query([
 
                         <div class="mb-3">
                             <label class="form-label">Terms of Payment</label>
-                            <select name="terms" class="form-select">
-                                <option value="*" selected>*</option>
+
+                            <select name="terms_select" id="terms_select" class="form-select " required>
+                                <option value="*" selected>* (No cash payment)</option>
                                 <option value="15">15 Days</option>
                                 <option value="30">30 Days</option>
                                 <option value="45">45 Days</option>
+                                <option value="custom">Custom</option>
                             </select>
-                            <div class="form-text">
-                                * = No cash payment will be accepted
-                            </div>
+
+                            <input type="number"
+                                name="terms_custom"
+                                id="terms_custom"
+                                class="form-control mt-2 d-none"
+                                placeholder="Enter number of days"
+                                min="0"
+                                max="365">
                         </div>
+
 
                         <div class="alert alert-secondary mb-0">
                             SOA number is auto-generated.
@@ -1327,5 +1296,32 @@ window.currentSOAId     = <?= json_encode($soa_id) ?>;
 window.SOA_STATUS_MAP = <?= json_encode(
   array_column($soas, 'status', 'soa_id')
 ) ?>;
+
+document.addEventListener('shown.bs.modal', function (event) {
+    if (event.target.id !== 'soaCreateModal') return;
+
+    const termsSelect = document.getElementById('terms_select');
+    const termsCustom = document.getElementById('terms_custom');
+
+    if (!termsSelect || !termsCustom) return;
+
+    function toggleCustomTerms() {
+        if (termsSelect.value === 'custom') {
+            termsCustom.classList.remove('d-none');
+            termsCustom.required = true;
+        } else {
+            termsCustom.classList.add('d-none');
+            termsCustom.required = false;
+            termsCustom.value = '';
+        }
+    }
+
+    // initial state when modal opens
+    toggleCustomTerms();
+
+    // avoid double binding
+    termsSelect.removeEventListener('change', toggleCustomTerms);
+    termsSelect.addEventListener('change', toggleCustomTerms);
+});
 
 </script>

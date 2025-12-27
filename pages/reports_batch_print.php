@@ -2,6 +2,17 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 
+
+$termsValue = trim((string)($soa['terms'] ?? ''));
+
+if ($termsValue === '*') {
+    $termsText = 'Cash payment is not accepted. ' .
+                 'Make all check payables to ALPHASAND AGGREGATES TRADING';
+} else {
+    $termsText = $termsValue . ' Days upon presentation of SOA. ' .
+                 'Make all check payables to ALPHASAND AGGREGATES TRADING';
+}
+
 /* =========================
    VALIDATION
 ========================= */
@@ -96,7 +107,7 @@ function printSOA(PDO $conn, array $soa, bool $pageBreak)
 
             /* ===== HEADER ===== */
             ?>
-            <img src="../assets/header.png" class="header-image">
+            <img src="../assets/headerv2.png" class="header-image">
 
             <div class="page-meta">
                 <div class="billing-date">
@@ -108,15 +119,27 @@ function printSOA(PDO $conn, array $soa, bool $pageBreak)
             </div>
 
             <table class="soa-header-table">
-                <tr>
-                    <td><strong>Company Name:</strong> <?= htmlspecialchars($soa['company_name']) ?></td>
-                    <td><strong>Statement of Account No:</strong> <?= htmlspecialchars($soa['soa_no']) ?></td>
-                </tr>
-                <tr>
-                    <td><strong>Project Site:</strong> <?= htmlspecialchars($soa['site_name']) ?></td>
-                    <td><strong>PO Number:</strong> *</td>
-                </tr>
-            </table>
+        <tr>
+            <td>
+                <span class="label">Company Name:</span>
+                <span class="value"><?= htmlspecialchars($soa['company_name']) ?></span>
+            </td>
+            <td class="right">
+                <span class="label">Statement of Account No:</span>
+                <span class="value"><?= htmlspecialchars($soa['soa_no']) ?></span>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <span class="label">Project Site:</span>
+                <span class="value"><?= htmlspecialchars($soa['site_name']) ?></span>
+            </td>
+            <td class="right">
+                <span class="label">PO Number:</span>
+                <span class="value">*</span>
+            </td>
+        </tr>
+    </table>
 
             <table class="soa-table">
                 <thead class="soa-header">
@@ -162,13 +185,22 @@ function printSOA(PDO $conn, array $soa, bool $pageBreak)
         <div><strong>Total DR Count:</strong> <?= $totalRows ?></div>
 
         <div class="terms-block">
-            <strong>Terms of Payment:</strong><br>
-            <?php if ($soa['terms'] === '*'): ?>
-                <span class="terms-highlight">NO CASH PAYMENT WILL BE ACCEPTED</span>
-            <?php else: ?>
-                <?= htmlspecialchars($soa['terms']) ?>
-            <?php endif; ?>
-        </div>
+    <strong>Terms of Payment:</strong><br>
+
+    <?php
+    $termsValue = trim((string)($soa['terms'] ?? ''));
+
+    if ($termsValue === '*'):
+    ?>
+        <span class="terms-highlight">
+            Cash payment is not accepted. Make all check payables to <strong>ALPHASAND AGGREGATES TRADING</strong>
+        </span>
+    <?php else: ?>
+        <strong><?= htmlspecialchars($termsValue) ?></strong>
+        Days upon presentation of SOA.
+        Make all check payables to <strong>ALPHASAND AGGREGATES TRADING</strong>
+    <?php endif; ?>
+</div>
     </div>
 
     <!-- ===== FOOTER (FINAL PAGE ONLY) ===== -->

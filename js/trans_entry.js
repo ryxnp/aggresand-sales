@@ -411,4 +411,3 @@ function initSOABar() {
             this.closest('form').submit();
         });
     }
-
