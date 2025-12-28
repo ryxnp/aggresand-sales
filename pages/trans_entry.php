@@ -18,7 +18,7 @@ $soa = null;
 
 if ($soa_id > 0) {
     $stmt = $conn->prepare("
-        SELECT soa_id, soa_no, company_id, site_id, terms, status
+        SELECT soa_id, soa_no, company_id, site_id, terms
         FROM statement_of_account
         WHERE soa_id = :id AND is_deleted = 0
         LIMIT 1
@@ -117,46 +117,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $_SESSION['alert'] = ['type' => 'success', 'message' => "SOA created ($soa_no)"];
                 header("Location: /main.php#trans_entry.php?soa_id=".$newSOAId);
-                exit;
-            }
-
-            if ($action === 'finalize') {
-                $soa_id_post = (int)($_POST['soa_id'] ?? 0);
-                if ($soa_id_post <= 0) throw new Exception('Invalid SOA');
-
-                $stmt = $conn->prepare("
-                    SELECT * FROM statement_of_account
-                    WHERE soa_id = :id AND is_deleted = 0
-                    LIMIT 1
-                ");
-                $stmt->execute([':id' => $soa_id_post]);
-                $oldSOA = $stmt->fetch(PDO::FETCH_ASSOC);
-                if (!$oldSOA) throw new Exception('SOA not found');
-
-                if (($oldSOA['status'] ?? '') === 'finalized') {
-                    throw new Exception('SOA already finalized');
-                }
-
-                $audit = audit_on_update($admin);
-
-                $upd = $conn->prepare("
-                    UPDATE statement_of_account
-                    SET status = 'finalized',
-                        billing_date = CURRENT_DATE,
-                        date_edited = :date_edited,
-                        edited_by = :edited_by
-                    WHERE soa_id = :id
-                ");
-                $upd->execute([
-                    ':id'         => $soa_id_post,
-                    ':date_edited'=> $audit['date_edited'],
-                    ':edited_by'  => $audit['edited_by'],
-                ]);
-
-                audit_log('statement_of_account', $soa_id_post, 'FINALIZE', $oldSOA, ['status' => 'finalized'], $admin);
-
-                $_SESSION['alert'] = ['type' => 'success', 'message' => 'SOA finalized (Deliveries locked)'];
-                header("Location: /main.php#trans_entry.php?soa_id=".$soa_id_post);
                 exit;
             }
 
@@ -324,7 +284,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $soaStmt->execute([':id' => $soa_id_post]);
             $soaRow = $soaStmt->fetch(PDO::FETCH_ASSOC);
             if (!$soaRow) throw new Exception('Invalid SOA selected');
-            if (($soaRow['status'] ?? '') === 'finalized') throw new Exception('SOA is finalized. Deliveries are locked.');
             
             // normalize once
             $dr_no = trim((string)$dr_no);
@@ -442,9 +401,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!empty($oldData['soa_id'])) {
                     $chk = $conn->prepare("SELECT status FROM statement_of_account WHERE soa_id=:sid AND is_deleted=0");
                     $chk->execute([':sid'=>$oldData['soa_id']]);
-                    if ($chk->fetchColumn() === 'finalized') {
-                        throw new Exception('Delivery belongs to a finalized SOA');
-                    }
                 }
 
                 $audit = audit_on_update($admin);
@@ -561,7 +517,6 @@ $soas = $conn->query("
     JOIN company co ON s.company_id = co.company_id
     JOIN site si ON s.site_id = si.site_id
     WHERE s.is_deleted = 0
-      AND s.status IN ('draft','finalized')
     ORDER BY s.date_created DESC, s.soa_id DESC
 ")->fetchAll(PDO::FETCH_ASSOC);
 
@@ -786,19 +741,6 @@ $queryBase = http_build_query([
                 </div>
             </div>
 
-            <div style="min-width:220px;">
-                <label class="form-label mb-1">SOA Status</label><br>
-                <?php
-                $badge = 'secondary';
-                $label = 'No SOA Selected';
-                if ($soa) {
-                    if ($soa['status'] === 'finalized') { $badge='success'; $label='Finalized'; }
-                    else { $badge='danger'; $label=ucfirst($soa['status']); }
-                }
-                ?>
-                <span class="badge bg-<?= $badge ?>" id="soa_status_badge"><?= htmlspecialchars($label) ?></span>
-            </div>
-
             <div class="ms-auto d-flex gap-2">
                 <button type="button"
                         class="btn btn-outline-primary"
@@ -809,30 +751,13 @@ $queryBase = http_build_query([
                     Create New SOA
                 </button>
 
-                <form method="POST" action="pages/trans_entry.php" class="m-0 p-0">
-                    <input type="hidden" name="form_type" value="soa">
-                    <input type="hidden" name="action" value="finalize">
-                    <input type="hidden" name="soa_id" value="<?= (int)$soa_id ?>">
-                    <button type="button"
-                            class="btn btn-danger"
-                            id="btn_finalize_soa"
-                            <?= (!$soa || $soa['status'] === 'finalized') ? 'disabled' : '' ?>>
-                        Finalize SOA
-                    </button>
-
-                </form>
-
                 <a class="btn btn-success"
-                id="btn_print_soa"
-                target="_blank"
-                href="<?= ($soa && $soa['status'] !== 'draft')
-                        ? 'pages/reports_print.php?soa_id='.(int)$soa_id
-                        : '#' ?>"
-                style="<?= ($soa && $soa['status'] !== 'draft')
-                        ? ''
-                        : 'pointer-events:none; opacity:.6;' ?>">
-                    Print SOA
-                </a>
+                    id="btn_print_soa"
+                    target="_blank"
+                    href="<?= $soa ? 'pages/reports_print.php?soa_id='.(int)$soa_id : '#' ?>"
+                    <?= !$soa ? 'style="pointer-events:none; opacity:.6;"' : '' ?>>
+                        Print SOA
+                    </a>
             </div>
 
         </div>
@@ -943,15 +868,11 @@ $queryBase = http_build_query([
                 </div>
 
                 <div id="deliveryFormCollapse" class="collapse">
-                    <?php $soaLocked = (!$soa || ($soa['status'] ?? '') === 'finalized'); ?>
+                    <?php $soaLocked = (!$soa); ?>
 
                     <?php if (!$soa): ?>
                         <div class="alert alert-warning m-3">
                             Please select or create an SOA to enable delivery entry.
-                        </div>
-                    <?php elseif (($soa['status'] ?? '') === 'finalized'): ?>
-                        <div class="alert alert-info m-3">
-                            This SOA is finalized. Deliveries are locked.
                         </div>
                     <?php endif; ?>
 
@@ -1037,7 +958,7 @@ $queryBase = http_build_query([
                                 </select>
                             </div>
 
-                            <button type="submit" class="btn btn-success" <?= ($soa && ($soa['status'] ?? '') === 'finalized') ? 'disabled' : '' ?> id="delivery-submit-btn">
+                            <button type="submit" class="btn btn-success" id="delivery-submit-btn">
                                 Save Delivery
                             </button>
                             <button type="button"
@@ -1184,7 +1105,7 @@ $queryBase = http_build_query([
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="del_id" value="<?= (int)$r['del_id'] ?>">
                                     <input type="hidden" name="soa_id" value="<?= (int)$soa_id ?>">
-                                    <button class="btn btn-sm btn-danger" <?= ($soa && ($soa['status'] ?? '') === 'finalized') ? 'disabled' : '' ?>>Delete</button>
+                                    <button class="btn btn-sm btn-danger">Delete</button>
                                 </form>
                             </td>
                         </tr>
@@ -1290,12 +1211,7 @@ $queryBase = http_build_query([
 </div>
 
 <script>
-window.currentSOAStatus = <?= json_encode($soa['status'] ?? null) ?>;
 window.currentSOAId     = <?= json_encode($soa_id) ?>;
-
-window.SOA_STATUS_MAP = <?= json_encode(
-  array_column($soas, 'status', 'soa_id')
-) ?>;
 
 document.addEventListener('shown.bs.modal', function (event) {
     if (event.target.id !== 'soaCreateModal') return;

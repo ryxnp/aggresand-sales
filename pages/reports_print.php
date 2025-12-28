@@ -46,10 +46,6 @@ if (!$soa) {
     die('SOA not found');
 }
 
-if ($soa['status'] !== 'finalized') {
-    die('SOA is not finalized');
-}
-
 /* =========================
    FETCH DELIVERIES
 ========================= */

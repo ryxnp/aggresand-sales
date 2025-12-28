@@ -341,8 +341,6 @@ function initCollapseToggles() {
 function initSOABar() {
         const $soaSelect = $('#soa_select');
         const $soaHidden = $('#soa_id');
-        const $badge = $('#soa_status_badge');
-        const $btnFinalize = $('#btn_finalize_soa');
         const $btnPrint = $('#btn_print_soa');
         const $btnCreate = $('#btn_open_create_soa');
 
@@ -356,39 +354,27 @@ function initSOABar() {
             $('#delivery-form').toggleClass('opacity-50', disabled);
         }
 
-        function setBadge(status) {
-            $badge.removeClass();
-            if (!status) {
-                $badge.addClass('badge bg-secondary').text('NO SOA');
-            } else if (status === 'finalized') {
-                $badge.addClass('badge bg-success').text('FINALIZED');
-            } else {
-                $badge.addClass('badge bg-warning text-dark').text('DRAFT');
-            }
-        }
-
         function applySOAState(soaId) {
-            const status = window.SOA_STATUS_MAP?.[soaId] || '';
 
-            $soaHidden.val(soaId || '');
-            setBadge(status);
+    $soaHidden.val(soaId || '');
 
-            const isFinal = status === 'finalized';
-            disableDelivery(!soaId || isFinal);
+    // Disable delivery ONLY if no SOA
+    disableDelivery(!soaId);
 
-            $btnFinalize.prop('disabled', !soaId || isFinal);
-            $btnCreate.prop('disabled', !!soaId);
+    // Create SOA button
+    $btnCreate.prop('disabled', !!soaId);
 
-            if (soaId && isFinal) {
-                $btnPrint
-                    .attr('href', 'pages/reports_print.php?soa_id=' + soaId)
-                    .css({ pointerEvents: 'auto', opacity: 1 });
-            } else {
-                $btnPrint
-                    .attr('href', '#')
-                    .css({ pointerEvents: 'none', opacity: 0.6 });
-            }
-        }
+    // ✅ PRINT: enabled whenever SOA exists
+    if (soaId) {
+        $btnPrint
+            .attr('href', 'pages/reports_print.php?soa_id=' + soaId)
+            .css({ pointerEvents: 'auto', opacity: 1 });
+    } else {
+        $btnPrint
+            .attr('href', '#')
+            .css({ pointerEvents: 'none', opacity: 0.6 });
+    }
+}
 
         $soaSelect.on('change', function () {
             const soaId = this.value || '';
@@ -405,9 +391,4 @@ function initSOABar() {
             $soaSelect.val(initialSOA).trigger('change.select2');
         }
         applySOAState($soaSelect.val());
-
-        $btnFinalize.on('click', function () {
-            if (!confirm('Finalize this SOA?\nThis cannot be undone.')) return;
-            this.closest('form').submit();
-        });
     }

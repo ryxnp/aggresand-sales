@@ -8,7 +8,7 @@
 
     <div class="sidebar-section">
       <div class="sidebar-title">MAINTENANCE</div>
-      <div class="sidebar-link" data-page="contractor.php">Contractor</div>
+      <!-- <div class="sidebar-link" data-page="contractor.php">Contractor</div> -->
       <div class="sidebar-link" data-page="site.php">Site</div>
       <div class="sidebar-link" data-page="materials.php">Materials</div>
       <div class="sidebar-link" data-page="truck.php">Truck</div>
