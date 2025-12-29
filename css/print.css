@@ -53,23 +53,36 @@
 
         .soa-header-table {
             width: 100%;
-            font-size: 15px;
-            /* ⬆ slightly larger */
-            margin-top: 6px;
-            margin-bottom: 12px;
-            /* ⬆ more breathing space */
             border-collapse: collapse;
+            table-layout: fixed;
+            font-size: 15px;
         }
 
         .soa-header-table td {
+            width: 50%;
             padding: 4px 6px;
             vertical-align: top;
         }
+        
+        /* alignment */
+        .soa-header-table td.right {
+            text-align: left;
+        }
 
-        .soa-header-table strong {
+        /* label/value spacing */
+        .soa-header-table .label {
             display: inline-block;
-            min-width: 120px;
+            min-width: 170px; /* controls spacing */
             font-weight: bold;
+        }
+
+        .soa-header-table td.right .label {
+            min-width: auto;
+            margin-right: 6px;
+        }
+
+        .soa-header-table .value {
+            display: inline-block;
         }
 
         .soa-header-table td span,

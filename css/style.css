@@ -162,3 +162,8 @@ body {
   border: 1px solid #ffcccc;
   border-radius: 10px;
 }
+
+.bulk-select-locked {
+    background-color: #e9ecef;
+    pointer-events: none;
+}
