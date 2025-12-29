@@ -5,10 +5,16 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../helpers/audit_fields.php';
 require_once __DIR__ . '/../helpers/audit.php';
-require_once __DIR__ . '/../helpers/soa.php'; // <-- 4C helper (generate_soa_no)
+require_once __DIR__ . '/../helpers/soa.php';
 
 $admin       = $_SESSION['admin_id'] ?? null;
 $redirectUrl = '/main.php#trans_entry.php';
+
+$soa_id = 0;
+
+if (isset($_GET['soa_id']) && ctype_digit((string)$_GET['soa_id'])) {
+    $soa_id = (int)$_GET['soa_id'];
+}
 
 /* ============================================================
    SOA CONTEXT (single source of truth)
@@ -52,199 +58,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($formType === 'soa') {
             $action = $_POST['action'] ?? 'create';
 
-            if ($action === 'create') {
-                $company_id = (int)($_POST['company_id'] ?? 0);
-                $site_id    = (int)($_POST['site_id'] ?? 0);
-                
-                $termsSelect = $_POST['terms_select'] ?? '*';
-
-                if ($termsSelect === 'custom') {
-                    $termsCustom = trim($_POST['terms_custom'] ?? '');
-
-                    if ($termsCustom === '' || !ctype_digit($termsCustom)) {
-                        throw new Exception('Custom terms must be a valid number of days');
-                    }
-
-                    $terms = (string)(int)$termsCustom;
-
-                    if ((int)$terms > 365) {
-                        throw new Exception('Terms cannot exceed 365 days');
-                    }
-
-                } else {
-                    $allowed = ['*', '15', '30', '45'];
-
-                    if (!in_array($termsSelect, $allowed, true)) {
-                        throw new Exception('Invalid Terms of Payment');
-                    }
-
-                    $terms = $termsSelect;
-                }
-
-
-                if ($company_id <= 0) throw new Exception('Company is required for SOA');
-                if ($site_id <= 0) throw new Exception('Site is required for SOA');
-                $audit  = audit_on_create($admin);
-                $soa_no = generate_soa_no($conn);
-
-                $stmt = $conn->prepare("
-                    INSERT INTO statement_of_account
-                        (soa_no, company_id, site_id, terms, status, is_deleted,
-                         date_created, date_edited, created_by, edited_by)
-                    VALUES
-                        (:soa_no, :company_id, :site_id, :terms, 'draft', 0,
-                         :date_created, :date_edited, :created_by, :edited_by)
-                ");
-                $stmt->execute([
-                    ':soa_no'       => $soa_no,
-                    ':company_id'   => $company_id,
-                    ':site_id'      => $site_id,
-                    ':terms'        => $terms,
-                    ':date_created' => $audit['date_created'],
-                    ':date_edited'  => $audit['date_edited'],
-                    ':created_by'   => $audit['created_by'],
-                    ':edited_by'    => $audit['edited_by'],
-                ]);
-
-                $newSOAId = (int)$conn->lastInsertId();
-                audit_log('statement_of_account', $newSOAId, 'CREATE', null, [
-                    'soa_no'     => $soa_no,
-                    'company_id' => $company_id,
-                    'site_id'    => $site_id,
-                    'terms'      => $terms,
-                    'status'     => 'draft',
-                ], $admin);
-
-                $_SESSION['alert'] = ['type' => 'success', 'message' => "SOA created ($soa_no)"];
-                header("Location: /main.php#trans_entry.php?soa_id=".$newSOAId);
-                exit;
+            if ($action !== 'create') {
+                throw new Exception('Invalid SOA action');
             }
 
-            throw new Exception('Invalid SOA action');
-        }
+            $company_id = (int)($_POST['company_id'] ?? 0);
+            $site_id    = (int)($_POST['site_id'] ?? 0);
 
-        /* ===================== CUSTOMER ===================== */
-        if ($formType === 'customer') {
+            if ($company_id <= 0 || $site_id <= 0) {
+                throw new Exception('Company and Site are required');
+            }
 
-            $action = $_POST['action'] ?? 'create';
-            $id     = (int)($_POST['customer_id'] ?? 0);
-
-            // If SOA exists, company/site are locked to that SOA
-            if (!empty($_POST['soa_id'])) {
-                $soa_id_post = (int)$_POST['soa_id'];
-                if ($soa_id_post > 0) {
-                    $s = $conn->prepare("SELECT soa_id, company_id, site_id, status FROM statement_of_account WHERE soa_id=:id AND is_deleted=0");
-                    $s->execute([':id' => $soa_id_post]);
-                    $soaRow = $s->fetch(PDO::FETCH_ASSOC);
-                    if ($soaRow) {
-                        $company_id = (int)$soaRow['company_id'];
-                        $site_id    = (int)$soaRow['site_id'];
-                    } else {
-                        $company_id = (int)($_POST['company_id'] ?? 0) ?: null;
-                        $site_id    = (int)($_POST['site_id'] ?? 0) ?: null;
-                    }
-                } else {
-                    $company_id = (int)($_POST['company_id'] ?? 0) ?: null;
-                    $site_id    = (int)($_POST['site_id'] ?? 0) ?: null;
+            // Terms handling
+            $terms_select = $_POST['terms_select'] ?? '*';
+            if ($terms_select === 'custom') {
+                $terms_custom = (int)($_POST['terms_custom'] ?? 0);
+                if ($terms_custom <= 0) {
+                    throw new Exception('Custom terms must be greater than 0');
                 }
+                $terms = (string)$terms_custom;
             } else {
-                $company_id = (int)($_POST['company_id'] ?? 0) ?: null;
-                $site_id    = (int)($_POST['site_id'] ?? 0) ?: null;
+                $terms = $terms_select;
             }
 
-            $contractor_id = (int)($_POST['contractor_id'] ?? 0) ?: null;
-            $customer_name = trim($_POST['customer_name'] ?? '');
-            $contact_no    = trim($_POST['contact_no'] ?? '') ?: null;
-            $email         = trim($_POST['email'] ?? '') ?: null;
-            $address       = trim($_POST['address'] ?? '') ?: null;
-            $status        = $_POST['status'] ?? 'active';
+            // Generate SOA number
+            $soa_no = generate_soa_no($conn);
 
-            if ($customer_name === '') throw new Exception('Customer name is required');
+            $audit = audit_on_create($admin);
+            $billing_date = date('Y-m-d');
+            $stmt = $conn->prepare("
+        INSERT INTO statement_of_account (
+            soa_no,
+            company_id,
+            site_id,
+            billing_date,
+            terms,
+            is_deleted,
+            date_created,
+            date_edited,
+            created_by,
+            edited_by
+        ) VALUES (
+            :soa_no,
+            :company_id,
+            :site_id,
+            :billing_date,
+            :terms,
+            'draft',
+            0,
+            :date_created,
+            :date_edited,
+            :created_by,
+            :edited_by
+        )
+    ");
 
-            if ($action === 'create') {
-                $audit = audit_on_create($admin);
+            $stmt->execute([
+                ':soa_no'        => $soa_no,
+                ':company_id'    => $company_id,
+                ':site_id'       => $site_id,
+                ':billing_date'  => $billing_date,
+                ':terms'         => $terms,
+                ':date_created'  => $audit['date_created'],
+                ':date_edited'   => $audit['date_edited'],
+                ':created_by'    => $audit['created_by'],
+                ':edited_by'     => $audit['edited_by'],
+            ]);
 
-                $stmt = $conn->prepare("
-                    INSERT INTO customer
-                        (company_id, contractor_id, site_id, customer_name,
-                         contact_no, email, address, status, is_deleted,
-                         date_created, date_edited, created_by, edited_by)
-                    VALUES
-                        (:company_id, :contractor_id, :site_id, :customer_name,
-                         :contact_no, :email, :address, :status, 0,
-                         :date_created, :date_edited, :created_by, :edited_by)
-                ");
-                $stmt->execute([
-                    ':company_id'    => $company_id,
-                    ':contractor_id' => $contractor_id,
-                    ':site_id'       => $site_id,
-                    ':customer_name' => $customer_name,
-                    ':contact_no'    => $contact_no,
-                    ':email'         => $email,
-                    ':address'       => $address,
-                    ':status'        => $status,
-                    ':date_created'  => $audit['date_created'],
-                    ':date_edited'   => $audit['date_edited'],
-                    ':created_by'    => $audit['created_by'],
-                    ':edited_by'     => $audit['edited_by'],
-                ]);
+            $newSoaId = (int)$conn->lastInsertId();
 
-                $newId = (int)$conn->lastInsertId();
-                audit_log('customer', $newId, 'CREATE', null, $_POST, $admin);
+            audit_log('statement_of_account', $newSoaId, 'CREATE', null, $_POST, $admin);
 
-                $_SESSION['alert'] = ['type'=>'success','message'=>'Customer created'];
+            $_SESSION['alert'] = [
+                'type'    => 'success',
+                'message' => 'SOA created'
+            ];
 
-                // keep SOA context if present
-                $redir = $redirectUrl . ($soa_id > 0 ? '?soa_id='.$soa_id : '');
-                header("Location: $redir");
-                exit;
-            }
-
-            if ($action === 'update') {
-                if ($id <= 0) throw new Exception('Invalid customer ID');
-
-                $old = $conn->prepare("SELECT * FROM customer WHERE customer_id=:id AND is_deleted=0");
-                $old->execute([':id'=>$id]);
-                $oldData = $old->fetch(PDO::FETCH_ASSOC);
-                if (!$oldData) throw new Exception('Customer not found');
-
-                $audit = audit_on_update($admin);
-
-                $stmt = $conn->prepare("
-                    UPDATE customer SET
-                        company_id    = :company_id,
-                        contractor_id = :contractor_id,
-                        site_id       = :site_id,
-                        customer_name = :customer_name,
-                        contact_no    = :contact_no,
-                        email         = :email,
-                        address       = :address,
-                        status        = :status,
-                        date_edited   = :date_edited,
-                        edited_by     = :edited_by
-                    WHERE customer_id = :id
-                ");
-                $stmt->execute([
-                    ':id'            => $id,
-                    ':company_id'    => $company_id,
-                    ':contractor_id' => $contractor_id,
-                    ':site_id'       => $site_id,
-                    ':customer_name' => $customer_name,
-                    ':contact_no'    => $contact_no,
-                    ':email'         => $email,
-                    ':address'       => $address,
-                    ':status'        => $status,
-                    ':date_edited'   => $audit['date_edited'],
-                    ':edited_by'     => $audit['edited_by'],
-                ]);
-
-                audit_log('customer', $id, 'UPDATE', $oldData, $_POST, $admin);
-                $_SESSION['alert'] = ['type'=>'success','message'=>'Customer updated'];
-
-                $redir = $redirectUrl . ($soa_id > 0 ? '?soa_id='.$soa_id : '');
-                header("Location: $redir");
-                exit;
-            }
+            header("Location: /main.php#trans_entry.php?soa_id=" . $newSoaId);
+            exit;
         }
 
         /* ===================== DELIVERY ===================== */
@@ -253,30 +144,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $action = $_POST['action'] ?? 'create';
             $id     = (int)($_POST['del_id'] ?? 0);
 
-            $soa_id_post   = (int)($_POST['soa_id'] ?? 0); // may be 0 (4C)
+            $soa_id_post = (int)($_POST['soa_id'] ?? 0);
             if ($soa_id_post <= 0) {
-                throw new Exception('Please select an SOA before adding deliveries');
-            }
-            $customer_id   = (int)($_POST['delivery_customer_id'] ?? 0);
-            $delivery_date = trim($_POST['delivery_date'] ?? '');
-            if ($delivery_date === '') {
-                throw new Exception('Delivery date is required');
+                throw new Exception('Please select an SOA first');
             }
 
-            $dr_no         = trim($_POST['dr_no'] ?? '');
-            $po_number     = trim($_POST['po_number'] ?? '') ?: null;
-            $truck_id      = (int)($_POST['truck_id'] ?? 0) ?: null;
-            $material      = trim($_POST['material_name'] ?? '');
-            $quantity      = (float)($_POST['quantity'] ?? 0);
-            $unit_price    = (float)($_POST['unit_price'] ?? 0);
-            $status        = $_POST['status'] ?? 'pending';
+            // ✅ ONLY validate delivery fields for CREATE / UPDATE
+            if (in_array($action, ['create', 'update'], true)) {
 
-            if ($customer_id <= 0) throw new Exception('Customer is required');
-            if ($delivery_date === '') throw new Exception('Delivery date is required');
+                $delivery_date = trim($_POST['delivery_date'] ?? '');
+                if ($delivery_date === '') {
+                    throw new Exception('Delivery date is required');
+                }
+
+                $dr_no      = trim($_POST['dr_no'] ?? '');
+                $po_number  = trim($_POST['po_number'] ?? '') ?: null;
+                $truck_id   = (int)($_POST['truck_id'] ?? 0) ?: null;
+                $material   = trim($_POST['material_name'] ?? '');
+                $quantity   = (float)($_POST['quantity'] ?? 0);
+                $unit_price = (float)($_POST['unit_price'] ?? 0);
+                $status     = $_POST['status'] ?? 'pending';
+            }
 
             // SOA validation (must exist)
             $soaStmt = $conn->prepare("
-                SELECT soa_id, status
+                SELECT soa_id, company_id
                 FROM statement_of_account
                 WHERE soa_id = :id AND is_deleted = 0
                 LIMIT 1
@@ -284,9 +176,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $soaStmt->execute([':id' => $soa_id_post]);
             $soaRow = $soaStmt->fetch(PDO::FETCH_ASSOC);
             if (!$soaRow) throw new Exception('Invalid SOA selected');
-            
-            // normalize once
-            $dr_no = trim((string)$dr_no);
+
+            $company_id = (int)$soaRow['company_id'];
+
+            if (in_array($action, ['create', 'update'], true)) {
+                $dr_no = trim((string)$dr_no);
+            }
+
 
             // ================= DR NUMBER UNIQUENESS CHECK =================
             if ($action === 'create') {
@@ -304,14 +200,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         throw new Exception('DR Number already exists. Please use a unique DR Number.');
                     }
                 }
-
             } elseif ($action === 'update') {
 
                 if ($id <= 0) throw new Exception('Invalid delivery ID');
 
                 // fetch old row early (needed for comparison)
                 $old = $conn->prepare("SELECT * FROM delivery WHERE del_id=:id AND is_deleted=0");
-                $old->execute([':id'=>$id]);
+                $old->execute([':id' => $id]);
                 $oldData = $old->fetch(PDO::FETCH_ASSOC);
                 if (!$oldData) throw new Exception('Delivery not found');
 
@@ -344,52 +239,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $stmt = $conn->prepare("
                     INSERT INTO delivery (
-                        soa_id, customer_id, delivery_date, dr_no,
+                        soa_id, company_id, delivery_date, dr_no,
                         truck_id, material,
                         quantity, unit_price, po_number,
                         status, is_deleted,
                         date_created, date_edited, created_by, edited_by
                     )
                     VALUES
-                        (:soa_id, :customer_id, :delivery_date, :dr_no,
+                        (:soa_id, :company_id, :delivery_date, :dr_no,
                          :truck_id, :material,
                          :quantity, :unit_price, :po_number,
                          :status, 0,
                          :date_created, :date_edited, :created_by, :edited_by)
                 ");
                 $stmt->execute([
-                    ':soa_id'       => $soa_id_post,
-                    ':customer_id'  => $customer_id,
-                    ':delivery_date'=> $delivery_date,
-                    ':dr_no'        => $dr_no,
-                    ':truck_id'     => $truck_id,
-                    ':material'     => $material,
-                    ':quantity'     => $quantity,
-                    ':unit_price'   => $unit_price,
-                    ':po_number'    => $po_number,
-                    ':status'       => $status,
-                    ':date_created' => $audit['date_created'],
-                    ':date_edited'  => $audit['date_edited'],
-                    ':created_by'   => $audit['created_by'],
-                    ':edited_by'    => $audit['edited_by'],
+                    ':soa_id'        => $soa_id_post,
+                    ':company_id'    => $company_id,
+                    ':delivery_date' => $delivery_date,
+                    ':dr_no'         => $dr_no,
+                    ':truck_id'      => $truck_id,
+                    ':material'      => $material,
+                    ':quantity'      => $quantity,
+                    ':unit_price'    => $unit_price,
+                    ':po_number'     => $po_number,
+                    ':status'        => $status,
+                    ':date_created'  => $audit['date_created'],
+                    ':date_edited'   => $audit['date_edited'],
+                    ':created_by'    => $audit['created_by'],
+                    ':edited_by'     => $audit['edited_by'],
                 ]);
+
+                if ($stmt->rowCount() === 0) {
+                    throw new Exception('Delivery insert failed (rowCount=0)');
+                }
 
                 $newDelId = (int)$conn->lastInsertId();
                 audit_log('delivery', $newDelId, 'CREATE', null, $_POST, $admin);
 
-                // $_SESSION['alert'] = ['type'=>'success','message'=>'Delivery created'];
-                // header("Location: /main.php#trans_entry.php?soa_id=".$soa_id_post);
-                // exit;
-                $_SESSION['alert'] = ['type'=>'success','message'=>'Delivery created'];
+                $_SESSION['alert'] = ['type' => 'success', 'message' => 'Delivery created'];
 
                 $insertMode = (int)($_POST['insert_mode'] ?? 0);
 
                 if ($insertMode === 1) {
                     // stay on page, keep form values
-                    header("Location: /main.php#trans_entry.php?soa_id=".$soa_id_post."&keep=1");
+                    header("Location: /main.php#trans_entry.php?soa_id=" . $soa_id_post);
                 } else {
                     // normal save behavior
-                    header("Location: /main.php#trans_entry.php?soa_id=".$soa_id_post);
+                    header("Location: /main.php#trans_entry.php?soa_id=" . $soa_id_post);
                 }
                 exit;
             }
@@ -397,49 +293,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($action === 'update') {
                 if ($id <= 0) throw new Exception('Invalid delivery ID');
 
-                // lock if old SOA finalized
-                if (!empty($oldData['soa_id'])) {
-                    $chk = $conn->prepare("SELECT status FROM statement_of_account WHERE soa_id=:sid AND is_deleted=0");
-                    $chk->execute([':sid'=>$oldData['soa_id']]);
-                }
-
                 $audit = audit_on_update($admin);
 
                 $stmt = $conn->prepare("
                     UPDATE delivery SET
-                        soa_id       = :soa_id,
-                        customer_id  = :customer_id,
-                        delivery_date= :delivery_date,
-                        dr_no        = :dr_no,
-                        truck_id     = :truck_id,
-                        material     = :material,
-                        quantity     = :quantity,
-                        unit_price   = :unit_price,
-                        po_number    = :po_number,
-                        status       = :status,
-                        date_edited  = :date_edited,
-                        edited_by    = :edited_by
+                        soa_id = :soa_id,
+                        company_id = :company_id,
+                        delivery_date = :delivery_date,
+                        dr_no = :dr_no,
+                        truck_id = :truck_id,
+                        material = :material,
+                        quantity = :quantity,
+                        unit_price = :unit_price,
+                        po_number = :po_number,
+                        status = :status,
+                        date_edited = :date_edited,
+                        edited_by = :edited_by
                     WHERE del_id = :id
                 ");
                 $stmt->execute([
-                    ':id'           => $id,
-                    ':soa_id'       => $soa_id_post,
-                    ':customer_id'  => $customer_id,
-                    ':delivery_date'=> $delivery_date,
-                    ':dr_no'        => $dr_no,
-                    ':truck_id'     => $truck_id,
-                    ':material'     => $material,
-                    ':quantity'     => $quantity,
-                    ':unit_price'   => $unit_price,
-                    ':po_number'    => $po_number,
-                    ':status'       => $status,
-                    ':date_edited'  => $audit['date_edited'],
-                    ':edited_by'    => $audit['edited_by'],
+                    ':id'            => $id,
+                    ':soa_id'        => $soa_id_post,
+                    ':company_id'    => $company_id,
+                    ':delivery_date' => $delivery_date,
+                    ':dr_no'         => $dr_no,
+                    ':truck_id'      => $truck_id,
+                    ':material'      => $material,
+                    ':quantity'      => $quantity,
+                    ':unit_price'    => $unit_price,
+                    ':po_number'     => $po_number,
+                    ':status'        => $status,
+                    ':date_edited'   => $audit['date_edited'],
+                    ':edited_by'     => $audit['edited_by'],
                 ]);
-
                 audit_log('delivery', $id, 'UPDATE', $oldData, $_POST, $admin);
-                $_SESSION['alert'] = ['type'=>'success','message'=>'Delivery updated'];
-                header("Location: /main.php#trans_entry.php?soa_id=".$soa_id_post);
+                $_SESSION['alert'] = ['type' => 'success', 'message' => 'Delivery updated'];
+                header("Location: /main.php#trans_entry.php?soa_id=" . $soa_id_post);
                 exit;
             }
 
@@ -447,43 +336,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($id <= 0) throw new Exception('Invalid delivery ID');
 
                 $old = $conn->prepare("SELECT * FROM delivery WHERE del_id=:id AND is_deleted=0");
-                $old->execute([':id'=>$id]);
+                $old->execute([':id' => $id]);
                 $oldData = $old->fetch(PDO::FETCH_ASSOC);
                 if (!$oldData) throw new Exception('Delivery not found');
-
-                // lock if SOA finalized
-                if (!empty($oldData['soa_id'])) {
-                    $chk = $conn->prepare("SELECT status FROM statement_of_account WHERE soa_id=:sid AND is_deleted=0");
-                    $chk->execute([':sid'=>$oldData['soa_id']]);
-                    if ($chk->fetchColumn() === 'finalized') {
-                        throw new Exception('Delivery belongs to a finalized SOA');
-                    }
-                }
 
                 $audit = audit_on_update($admin);
 
                 $stmt = $conn->prepare("
-                    UPDATE delivery SET
-                        is_deleted  = 1,
-                        date_edited = :date_edited,
-                        edited_by   = :edited_by
-                    WHERE del_id = :id
-                ");
+        UPDATE delivery SET
+            is_deleted  = 1,
+            date_edited = :date_edited,
+            edited_by   = :edited_by
+        WHERE del_id = :id
+    ");
                 $stmt->execute([
                     ':id'         => $id,
-                    ':date_edited'=> $audit['date_edited'],
+                    ':date_edited' => $audit['date_edited'],
                     ':edited_by'  => $audit['edited_by'],
                 ]);
 
-                audit_log('delivery', $id, 'DELETE', $oldData, ['is_deleted'=>1], $admin);
-                $_SESSION['alert'] = ['type'=>'success','message'=>'Delivery deleted'];
-                header("Location: /main.php#trans_entry.php?soa_id=".$soa_id_post);
+                audit_log('delivery', $id, 'DELETE', $oldData, ['is_deleted' => 1], $admin);
+
+                $_SESSION['alert'] = ['type' => 'success', 'message' => 'Delivery deleted'];
+                header("Location: /main.php#trans_entry.php?soa_id=" . $soa_id_post);
                 exit;
             }
         }
-
     } catch (Exception $e) {
-        $_SESSION['alert'] = ['type'=>'danger','message'=>$e->getMessage()];
+        $_SESSION['alert'] = ['type' => 'danger', 'message' => $e->getMessage()];
 
         $query = [];
         if ($soa_id > 0) $query[] = 'soa_id=' . $soa_id;
@@ -493,7 +373,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         header("Location: {$redirectUrl}{$qs}");
         exit;
-
     }
 
     // fallback
@@ -510,7 +389,6 @@ $soas = $conn->query("
     SELECT
         s.soa_id,
         s.soa_no,
-        s.status,
         co.company_name,
         si.site_name
     FROM statement_of_account s
@@ -600,13 +478,13 @@ $truckFilter = isset($_GET['truck_filter']) ? (int)$_GET['truck_filter'] : 0;
 $where  = "d.is_deleted = 0";
 $params = [];
 
-// SOA is REQUIRED to show deliveries
+// STRICT: deliveries only show when SOA is selected
 if ($soa_id > 0) {
     $where .= " AND d.soa_id = :soa_id";
     $params[':soa_id'] = $soa_id;
 } else {
-    // hard stop — no SOA, no rows
-    $where .= " AND 1 = 0";
+    // explicitly block listing
+    $where .= " AND 0 = 1";
 }
 
 // status
@@ -632,14 +510,13 @@ if ($truckFilter > 0) {
 if ($q !== '') {
     $where .= " AND (
         d.dr_no LIKE :q
-        OR c.customer_name LIKE :q
         OR co.company_name LIKE :q
         OR s.site_name LIKE :q
         OR t.plate_no LIKE :q
         OR d.material LIKE :q
         OR d.po_number LIKE :q
     )";
-    $params[':q'] = '%'.$q.'%';
+    $params[':q'] = '%' . $q . '%';
 }
 
 // pagination
@@ -651,9 +528,9 @@ if ($current_page < 1) $current_page = 1;
 $countSql = "
     SELECT COUNT(*)
     FROM delivery d
-    JOIN customer c ON d.customer_id = c.customer_id
-    LEFT JOIN company co ON c.company_id = co.company_id
-    LEFT JOIN site s ON c.site_id = s.site_id
+    JOIN company co ON d.company_id = co.company_id
+    JOIN statement_of_account s0 ON d.soa_id = s0.soa_id
+    JOIN site s ON s0.site_id = s.site_id
     LEFT JOIN truck t ON d.truck_id = t.truck_id
     WHERE $where
 ";
@@ -677,20 +554,19 @@ $listSql = "
         d.unit_price,
         d.status,
         d.po_number,
-        c.customer_id,
-        c.customer_name,
         co.company_name,
         s.site_name,
         t.plate_no
     FROM delivery d
-    JOIN customer c ON d.customer_id = c.customer_id
-    LEFT JOIN company co ON c.company_id = co.company_id
-    LEFT JOIN site s ON c.site_id = s.site_id
+    JOIN company co ON d.company_id = co.company_id
+    JOIN statement_of_account s0 ON d.soa_id = s0.soa_id
+    JOIN site s ON s0.site_id = s.site_id
     LEFT JOIN truck t ON d.truck_id = t.truck_id
     WHERE $where
     ORDER BY d.delivery_date DESC, d.del_id DESC
     LIMIT :limit OFFSET :offset
 ";
+
 
 $listStmt = $conn->prepare($listSql);
 foreach ($params as $k => $v) $listStmt->bindValue($k, $v);
@@ -703,7 +579,7 @@ $queryBase = http_build_query([
     'soa_id'         => $soa_id,
     'q'              => $q,
     'status_filter'  => $statusFilter,
-    'material_filter'=> $materialFilter,
+    'material_filter' => $materialFilter,
     'truck_filter'   => $truckFilter,
 ]);
 ?>
@@ -716,258 +592,124 @@ $queryBase = http_build_query([
             <?= htmlspecialchars($_SESSION['alert']['message']) ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
+
+        <?php if ($_SESSION['alert']['type'] === 'success'): ?>
+            <script>
+                setTimeout(() => {
+                    reloadTransEntry();
+                }, 300);
+            </script>
+        <?php endif; ?>
+
         <?php unset($_SESSION['alert']); ?>
     <?php } ?>
 
     <!-- ===================== SOA BAR ===================== -->
-    <div class="card mb-3" id="soa-bar">
-        <div class="card-body d-flex flex-wrap gap-2 align-items-end">
+    <div class="row mb-4">
 
-            <div style="min-width:320px;">
-                <label class="form-label mb-1">Statement of Account</label>
-                <select id="soa_select" class="form-select select2-field">
-                    <option value="">-- Select SOA --</option>
-                    <?php foreach ($soas as $s): ?>
-                        <option value="<?= (int)$s['soa_id'] ?>"
-                            <?= ($soa_id == $s['soa_id']) ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($s['soa_no']) ?>
-                            - <?= htmlspecialchars($s['company_name']) ?>
-                            - <?= htmlspecialchars($s['site_name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <div class="form-text">
-                    Select SOA first, or create one.
-                </div>
-            </div>
-
-            <div class="ms-auto d-flex gap-2">
-                <button type="button"
-                        class="btn btn-outline-primary"
-                        id="btn_open_create_soa"
-                        data-bs-toggle="modal"
-                        data-bs-target="#soaCreateModal"
-                        <?= $soa ? 'disabled' : '' ?>>
-                    Create New SOA
-                </button>
-
-                <a class="btn btn-success"
-                    id="btn_print_soa"
-                    target="_blank"
-                    href="<?= $soa ? 'pages/reports_print.php?soa_id='.(int)$soa_id : '#' ?>"
-                    <?= !$soa ? 'style="pointer-events:none; opacity:.6;"' : '' ?>>
-                        Print SOA
-                    </a>
-            </div>
-
-        </div>
-    </div>
-
-    <div class="row">
-        <!-- CUSTOMER FORM -->
-        <div class="col-lg-6 mb-4">
+        <!-- LEFT: DELIVERY FORM (65%) -->
+        <div class="col-lg-8">
             <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span id="customer-form-title">Customer</span>
-                    <button class="btn btn-sm btn-outline-secondary collapsed"
-                            type="button"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#customerFormCollapse"
-                            aria-expanded="false"
-                            aria-controls="customerFormCollapse">
-                        Show form
-                    </button>
-                </div>
-
-                <div id="customerFormCollapse" class="collapse">
-                    <div class="card-body">
-                        <form id="customer-form" method="POST" action="pages/trans_entry.php">
-                            <input type="hidden" name="form_type" value="customer">
-                            <input type="hidden" name="action" id="customer_action" value="create">
-                            <input type="hidden" name="customer_id" id="customer_id">
-                            <input type="hidden" name="soa_id" value="<?= (int)$soa_id ?>">
-
-                            <?php if ($soa): ?>
-                                <input type="hidden" name="company_id" value="<?= (int)$soa['company_id'] ?>">
-                                <input type="hidden" name="site_id" value="<?= (int)$soa['site_id'] ?>">
-                            <?php endif; ?>
-
-                            <div class="mb-3">
-                                <label class="form-label">Company</label>
-                                <select name="company_id" id="company_id" class="form-select select2-field" <?= $soa ? 'disabled' : '' ?>>
-                                    <option value="">-- Select Company --</option>
-                                    <?php foreach ($companies as $co): ?>
-                                        <option value="<?= (int)$co['company_id'] ?>"
-                                            <?= ($soa && (int)$soa['company_id'] === (int)$co['company_id']) ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($co['company_name']) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">Contractor</label>
-                                <select name="contractor_id" id="contractor_id" class="form-select select2-field">
-                                    <option value="">-- Select Contractor --</option>
-                                    <?php foreach ($contractors as $ct): ?>
-                                        <option value="<?= (int)$ct['contractor_id'] ?>"><?= htmlspecialchars($ct['contractor_name']) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">Site</label>
-                                <select name="site_id" id="site_id" class="form-select select2-field" <?= $soa ? 'disabled' : '' ?>>
-                                    <option value="">-- Select Site --</option>
-                                    <?php foreach ($sites as $st):
-                                        $label = $st['site_name'];
-                                        if (!empty($st['remarks'])) $label .= ' - '.$st['remarks'];
-                                    ?>
-                                        <option value="<?= (int)$st['site_id'] ?>"
-                                            <?= ($soa && (int)$soa['site_id'] === (int)$st['site_id']) ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($label) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">Customer Name</label>
-                                <input type="text" name="customer_name" id="customer_name" class="form-control" required>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">Status</label>
-                                <select name="status" id="customer_status" class="form-select">
-                                    <option value="active">Active</option>
-                                    <option value="inactive">Inactive</option>
-                                </select>
-                            </div>
-
-                            <button type="submit" class="btn btn-primary" id="customer-submit-btn">Save Customer</button>
-                            <button type="button" class="btn btn-secondary d-none" id="customer-cancel-edit-btn">Cancel</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- DELIVERY + TOTAL -->
-        <div class="col-lg-6 mb-4">
-            <div class="card mb-3">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span id="delivery-form-title">Delivery</span>
-                    <button class="btn btn-sm btn-outline-secondary collapsed"
-                            type="button"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#deliveryFormCollapse"
-                            aria-expanded="false"
-                            aria-controls="deliveryFormCollapse">
-                        Show form
-                    </button>
-                </div>
-
-                <div id="deliveryFormCollapse" class="collapse">
-                    <?php $soaLocked = (!$soa); ?>
-
-                    <?php if (!$soa): ?>
-                        <div class="alert alert-warning m-3">
-                            Please select or create an SOA to enable delivery entry.
-                        </div>
-                    <?php endif; ?>
+                <div class="card-header">Delivery</div>
+                <div class="card-body">
 
                     <div class="card-body">
-                        <form id="delivery-form" method="POST" action="pages/trans_entry.php" <?= $soaLocked ? 'class="opacity-50"' : '' ?>>
+                        <form id="delivery-form" method="POST" action="pages/trans_entry.php">
                             <fieldset id="delivery-fieldset"
-                            <?= $soaLocked ? 'disabled' : '' ?>>
-                            <input type="hidden" name="form_type" value="delivery">
-                            <input type="hidden" name="action" id="delivery_action" value="create">
-                            <input type="hidden" name="del_id" id="del_id">
-                            <input type="hidden" name="soa_id" id="soa_id" value="<?= (int)$soa_id ?>">
-                            <input type="hidden" name="insert_mode" id="insert_mode" value="0">
-                            <input type="hidden" name="keep" id="delivery_keep" value="0">
+                                <?= !$soa ? 'disabled' : '' ?>>
+                                <input type="hidden" name="form_type" value="delivery">
+                                <input type="hidden" name="action" id="delivery_action" value="create">
+                                <input type="hidden" name="del_id" id="del_id">
+                                <input type="hidden" name="soa_id" id="soa_id" value="<?= (int)$soa_id ?>">
+                                <input type="hidden" name="insert_mode" id="insert_mode" value="0">
+                                <input type="hidden" name="keep" id="delivery_keep" value="0">
 
-                            <div class="mb-3">
-                                <label class="form-label">Customer</label>
-                                <select name="delivery_customer_id" id="delivery_customer_id" class="form-select select2-field">
-                                    <option value="">-- Select Customer --</option>
-                                    <?php foreach ($customers as $cu): ?>
-                                        <option value="<?= (int)$cu['customer_id'] ?>"><?= htmlspecialchars($cu['customer_name']) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-
-                            <div class="row mb-3">
-                                <div class="col">
-                                    <label class="form-label">Delivery Date</label>
-                                    <input type="date" name="delivery_date" id="delivery_date" class="form-control" required>
+                                <div class="mb-3">
                                 </div>
-                            </div>
 
-                            <div class="row mb-3">
-                                <div class="col">
-                                    <label class="form-label">DR No</label>
-                                    <input type="text" name="dr_no" id="dr_no" class="form-control">
+                                <!-- <div class="row mb-3">
+                                    <div class="col">
+                                        <label class="form-label">Delivery Date</label>
+                                        <input type="date" name="delivery_date" id="delivery_date" class="form-control" required>
+                                    </div>
+                                </div> -->
+
+                                <div class="row mb-3">
+                                    <div class="col">
+                                        <label class="form-label">Delivery Date</label>
+                                        <input type="date" name="delivery_date" id="delivery_date" class="form-control" required>
+                                    </div>
+                                    <div class="col">
+                                        <label class="form-label">DR No</label>
+                                        <input type="text" name="dr_no" id="dr_no" class="form-control">
+                                    </div>
+                                    <div class="col">
+                                        <label class="form-label">PO Number</label>
+                                        <input type="text" name="po_number" id="po_number" class="form-control">
+                                    </div>
                                 </div>
-                                <div class="col">
-                                    <label class="form-label">PO Number</label>
-                                    <input type="text" name="po_number" id="po_number" class="form-control">
+
+                                <div class="row mb-3">
+                                    <div class="col">
+                                        <label class="form-label">Truck</label>
+                                        <select id="truck_id" name="truck_id" class="form-select select2-field">
+                                            <option value="">-- Select Truck --</option>
+                                            <?php foreach ($trucks as $t): ?>
+                                                <option value="<?= $t['truck_id'] ?>">
+                                                    <?= htmlspecialchars($t['plate_no']) ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col">
+                                        <label class="form-label">Material</label>
+                                        <select name="material_id" id="material_id" class="form-select select2-field">
+                                            <option value="">-- Select Material --</option>
+                                            <?php foreach ($materials as $m): ?>
+                                                <option value="<?= (int)$m['material_id'] ?>"><?= htmlspecialchars($m['material_name']) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <input type="hidden" name="material_name" id="material_name">
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div class="mb-3">
-                                <label class="form-label">Truck</label>
-                                <select id="truck_id" name="truck_id" class="form-select select2-field">
-                                    <option value="">-- Select Truck --</option>
-                                    <?php foreach ($trucks as $t): ?>
-                                        <option value="<?= $t['truck_id'] ?>">
-                                            <?= htmlspecialchars($t['plate_no']) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">Material</label>
-                                <select name="material_id" id="material_id" class="form-select select2-field">
-                                    <option value="">-- Select Material --</option>
-                                    <?php foreach ($materials as $m): ?>
-                                        <option value="<?= (int)$m['material_id'] ?>"><?= htmlspecialchars($m['material_name']) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <input type="hidden" name="material_name" id="material_name">
-                            </div>
-
-                            <div class="row mb-3">
-                                <div class="col">
-                                    <label class="form-label">Quantity</label>
-                                    <input type="number" step="0.01" name="quantity" id="quantity" class="form-control">
+                                <div class="row mb-3">
+                                    <div class="col">
+                                        <label class="form-label">Quantity</label>
+                                        <input type="number" step="0.01" name="quantity" id="quantity" class="form-control">
+                                    </div>
+                                    <div class="col">
+                                        <label class="form-label">Unit Price</label>
+                                        <input type="number" step="0.01" name="unit_price" id="unit_price" class="form-control">
+                                    </div>
+                                    <div class="col">
+                                        <label class="form-label">Status</label>
+                                        <select name="status" id="delivery_status" class="form-select">
+                                            <option value="pending">Pending</option>
+                                            <option value="delivered">Delivered</option>
+                                            <option value="cancelled">Cancelled</option>
+                                        </select>
+                                    </div>
                                 </div>
-                                <div class="col">
-                                    <label class="form-label">Unit Price</label>
-                                    <input type="number" step="0.01" name="unit_price" id="unit_price" class="form-control">
-                                </div>
-                            </div>
 
-                            <div class="mb-3">
-                                <label class="form-label">Status</label>
-                                <select name="status" id="delivery_status" class="form-select">
-                                    <option value="pending">Pending</option>
-                                    <option value="delivered">Delivered</option>
-                                    <option value="cancelled">Cancelled</option>
-                                </select>
-                            </div>
+                                <!-- <div class="mb-3">
+                                    <label class="form-label">Status</label>
+                                    <select name="status" id="delivery_status" class="form-select">
+                                        <option value="pending">Pending</option>
+                                        <option value="delivered">Delivered</option>
+                                        <option value="cancelled">Cancelled</option>
+                                    </select>
+                                </div> -->
 
-                            <button type="submit" class="btn btn-success" id="delivery-submit-btn">
-                                Save Delivery
-                            </button>
-                            <button type="button"
-                                class="btn btn-outline-primary ms-2"
-                                id="delivery-insert-btn"
-                                <?= $soaLocked ? 'disabled' : '' ?>>
-                                Insert
-                            </button>
-                            <button type="button" class="btn btn-secondary d-none" id="delivery-cancel-edit-btn">Cancel</button>
+                                <button type="submit" class="btn btn-success" id="delivery-submit-btn">
+                                    Save Delivery
+                                </button>
+                                <button type="button"
+                                    class="btn btn-outline-primary ms-2"
+                                    id="delivery-insert-btn">
+                                    Insert
+                                </button>
+                                <button type="button" class="btn btn-secondary d-none" id="delivery-cancel-edit-btn">Cancel</button>
                             </fieldset>
                         </form>
                     </div>
@@ -982,99 +724,142 @@ $queryBase = http_build_query([
                             <div class="form-text">Total = Quantity × Unit Price (auto-calculated).</div>
                         </div>
                     </div>
+
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- FILTERS + TABLE -->
-    <div class="card">
-        <div class="card-header">
-            <form class="row g-2 align-items-end trans-filter-form flex-nowrap" method="GET" action="">
-    <input type="hidden" name="soa_id" value="<?= (int)$soa_id ?>">
-    <input type="hidden" name="form_type" value="filter">
-    <!-- SEARCH (big) -->
-    <div class="col-lg-5 col-md-12">
-        <label class="form-label">Search</label>
-        <input type="text" name="q" class="form-control"
-               value="<?= htmlspecialchars($q) ?>"
-               placeholder="DR / Customer / Material / Truck / PO">
-    </div>
+        <!-- RIGHT: SOA PANEL (35%) -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">Statement of Account</div>
+                <div class="card-body">
 
-    <!-- MATERIAL -->
-    <div class="col-lg-2 col-md-4">
-        <label class="form-label">Material</label>
-        <select name="material_filter" class="form-select">
-            <option value="">All</option>
-            <?php foreach ($materials as $m): ?>
-                <option value="<?= htmlspecialchars($m['material_name']) ?>"
-                    <?= $materialFilter === $m['material_name'] ? 'selected' : '' ?>>
-                    <?= htmlspecialchars($m['material_name']) ?>
-                </option>
-            <?php endforeach; ?>
-        </select>
-    </div>
+                    <label class="form-label">SOA</label>
+                    <select id="soa_select" class="form-select select2-field mb-3">
+                        <option value="">-- Select SOA --</option>
+                        <?php foreach ($soas as $s): ?>
+                            <option value="<?= $s['soa_id'] ?>" <?= $soa_id == $s['soa_id'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($s['soa_no']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    
+                    <small class="text-muted d-block mb-3">
+                        Please select a SOA first to enable delivery entry and printing.
+                    </small>
 
-    <!-- TRUCK -->
-    <div class="col-lg-2 col-md-4">
-        <label class="form-label">Truck</label>
-        <select name="truck_filter" class="form-select">
-            <option value="">All</option>
-            <?php foreach ($trucks as $t): ?>
-                <option value="<?= (int)$t['truck_id'] ?>"
-                    <?= $truckFilter === (int)$t['truck_id'] ? 'selected' : '' ?>>
-                    <?= htmlspecialchars($t['plate_no']) ?>
-                </option>
-            <?php endforeach; ?>
-        </select>
-    </div>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary"
+                            data-bs-toggle="modal"
+                            data-bs-target="#soaCreateModal"
+                            <?= $soa ? 'disabled' : '' ?>>
+                            Create New SOA
+                        </button>
 
-    <!-- STATUS -->
-    <div class="col-lg-2 col-md-4">
-        <label class="form-label">Status</label>
-        <select name="status_filter" class="form-select">
-            <option value="">All</option>
-            <option value="pending"   <?= $statusFilter==='pending'?'selected':'' ?>>Pending</option>
-            <option value="delivered" <?= $statusFilter==='delivered'?'selected':'' ?>>Delivered</option>
-            <option value="cancelled" <?= $statusFilter==='cancelled'?'selected':'' ?>>Cancelled</option>
-        </select>
-    </div>
+                        <a class="btn btn-success"
+                            target="_blank"
+                            href="<?= $soa ? 'pages/reports_print.php?soa_id=' . $soa_id : '#' ?>"
+                            <?= !$soa ? 'style="pointer-events:none;opacity:.6"' : '' ?>>
+                            Print SOA
+                        </a>
+                    </div>
 
-    <!-- APPLY -->
-    <div class="col-lg-1">
-        <button class="btn btn-primary w-100">Apply</button>
-    </div>
-</form>
+                </div>
+            </div>
         </div>
 
-        <div class="card-body table-responsive">
-            <table class="table table-striped table-bordered mb-0" id="delivery-table">
-                <thead class="table-light">
-                    <tr>
-                        <th>DR No</th>
-                        <th>Delivery Date</th>
-                        <th>Customer</th>
-                        <th>Company</th>
-                        <th>Site</th>
-                        <th>Truck</th>
-                        <th>Material</th>
-                        <th>Qty</th>
-                        <th>Unit Price</th>
-                        <th>Total</th>
-                        <th>Status</th>
-                        <th width="150">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
+    </div>
+</div>
+
+<!-- FILTERS + TABLE -->
+<div class="card">
+    <div class="card-header">
+        <form class="row g-2 align-items-end trans-filter-form flex-nowrap" method="GET" action="">
+            <input type="hidden" name="soa_id" value="<?= (int)$soa_id ?>">
+            <input type="hidden" name="form_type" value="filter">
+            <!-- SEARCH (big) -->
+            <div class="col-lg-5 col-md-12">
+                <label class="form-label">Search</label>
+                <input type="text" name="q" class="form-control"
+                    value="<?= htmlspecialchars($q) ?>"
+                    placeholder="DR / Customer / Material / Truck / PO">
+            </div>
+
+            <!-- MATERIAL -->
+            <div class="col-lg-2 col-md-4">
+                <label class="form-label">Material</label>
+                <select name="material_filter" class="form-select">
+                    <option value="">All</option>
+                    <?php foreach ($materials as $m): ?>
+                        <option value="<?= htmlspecialchars($m['material_name']) ?>"
+                            <?= $materialFilter === $m['material_name'] ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($m['material_name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <!-- TRUCK -->
+            <div class="col-lg-2 col-md-4">
+                <label class="form-label">Truck</label>
+                <select name="truck_filter" class="form-select">
+                    <option value="">All</option>
+                    <?php foreach ($trucks as $t): ?>
+                        <option value="<?= (int)$t['truck_id'] ?>"
+                            <?= $truckFilter === (int)$t['truck_id'] ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($t['plate_no']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <!-- STATUS -->
+            <div class="col-lg-2 col-md-4">
+                <label class="form-label">Status</label>
+                <select name="status_filter" class="form-select">
+                    <option value="">All</option>
+                    <option value="pending" <?= $statusFilter === 'pending' ? 'selected' : '' ?>>Pending</option>
+                    <option value="delivered" <?= $statusFilter === 'delivered' ? 'selected' : '' ?>>Delivered</option>
+                    <option value="cancelled" <?= $statusFilter === 'cancelled' ? 'selected' : '' ?>>Cancelled</option>
+                </select>
+            </div>
+
+            <!-- APPLY -->
+            <div class="col-lg-1">
+                <button class="btn btn-primary w-100">Apply</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card-body table-responsive">
+        <table class="table table-striped table-bordered mb-0" id="delivery-table">
+            <thead class="table-light">
+                <tr>
+                    <th>DR No</th>
+                    <th>Delivery Date</th>
+                    <th>Company</th>
+                    <th>Site</th>
+                    <th>Truck</th>
+                    <th>Material</th>
+                    <th>Qty</th>
+                    <th>Unit Price</th>
+                    <th>Total</th>
+                    <th>Status</th>
+                    <th width="150">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
                 <?php if (!$rows): ?>
-                    <tr><td colspan="12" class="text-center">No records found.</td></tr>
+                    <tr>
+                        <td colspan="12" class="text-center">No records found.</td>
+                    </tr>
                 <?php else: ?>
                     <?php foreach ($rows as $r):
                         $total = (float)$r['quantity'] * (float)$r['unit_price'];
                     ?>
                         <tr class="delivery-row"
                             data-del-id="<?= (int)$r['del_id'] ?>"
-                            data-customer-id="<?= (int)$r['customer_id'] ?>"
                             data-delivery-date="<?= htmlspecialchars($r['delivery_date']) ?>"
                             data-truck-id="<?= (int)$r['truck_id'] ?>"
                             data-dr-no="<?= htmlspecialchars($r['dr_no'], ENT_QUOTES) ?>"
@@ -1082,11 +867,9 @@ $queryBase = http_build_query([
                             data-quantity="<?= htmlspecialchars($r['quantity']) ?>"
                             data-unit-price="<?= htmlspecialchars($r['unit_price']) ?>"
                             data-status="<?= htmlspecialchars($r['status']) ?>"
-                            data-po="<?= htmlspecialchars($r['po_number'] ?? '', ENT_QUOTES) ?>"
-                        >
+                            data-po="<?= htmlspecialchars($r['po_number'] ?? '', ENT_QUOTES) ?>">
                             <td><?= htmlspecialchars($r['dr_no']) ?></td>
                             <td><?= htmlspecialchars($r['delivery_date']) ?></td>
-                            <td><?= htmlspecialchars($r['customer_name']) ?></td>
                             <td><?= htmlspecialchars($r['company_name']) ?></td>
                             <td><?= htmlspecialchars($r['site_name']) ?></td>
                             <td class="truck-plate"><?= htmlspecialchars($r['plate_no'] ?? '') ?></td>
@@ -1096,11 +879,11 @@ $queryBase = http_build_query([
                             <td><?= number_format($total, 2) ?></td>
                             <td><?= htmlspecialchars($r['status']) ?></td>
                             <td class="text-nowrap">
-                                <button type="button" class="btn btn-sm btn-secondary trans-btn-edit-delivery" <?= ($soa && ($soa['status'] ?? '') === 'finalized') ? 'disabled' : '' ?>>
+                                <button type="button" class="btn btn-sm btn-secondary trans-btn-edit-delivery">
                                     Edit
                                 </button>
                                 <form method="POST" action="pages/trans_entry.php" class="d-inline"
-                                      onsubmit="return confirm('Delete this delivery?');">
+                                    onsubmit="return confirm('Delete this delivery?');">
                                     <input type="hidden" name="form_type" value="delivery">
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="del_id" value="<?= (int)$r['del_id'] ?>">
@@ -1111,133 +894,132 @@ $queryBase = http_build_query([
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-
-        <?php if ($total_pages > 1): ?>
-            <div class="card-footer">
-                <nav>
-                    <ul class="pagination mb-0">
-                        <li class="page-item <?= $current_page <= 1 ? 'disabled' : '' ?>">
-                            <a class="page-link" href="?<?= htmlspecialchars($queryBase) ?>&p=<?= $current_page - 1 ?>">&laquo;</a>
-                        </li>
-
-                        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                            <li class="page-item <?= $i == $current_page ? 'active' : '' ?>">
-                                <a class="page-link" href="?<?= htmlspecialchars($queryBase) ?>&p=<?= $i ?>"><?= $i ?></a>
-                            </li>
-                        <?php endfor; ?>
-
-                        <li class="page-item <?= $current_page >= $total_pages ? 'disabled' : '' ?>">
-                            <a class="page-link" href="?<?= htmlspecialchars($queryBase) ?>&p=<?= $current_page + 1 ?>">&raquo;</a>
-                        </li>
-                    </ul>
-                </nav>
-            </div>
-        <?php endif; ?>
-
-        <!-- SOA CREATE MODAL (BACKEND ENABLED) -->
-        <div class="modal fade" id="soaCreateModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog">
-                <form class="modal-content" id="soa-create-form" method="POST" action="pages/trans_entry.php">
-                    <input type="hidden" name="form_type" value="soa">
-                    <input type="hidden" name="action" value="create">
-
-                    <div class="modal-header">
-                        <h5 class="modal-title">Create New SOA</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">Company</label>
-                            <select name="company_id" class="form-select" required>
-                                <option value="">-- Select Company --</option>
-                                <?php foreach ($companies as $co): ?>
-                                    <option value="<?= (int)$co['company_id'] ?>"><?= htmlspecialchars($co['company_name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Site</label>
-                            <select name="site_id" class="form-select" required>
-                                <option value="">-- Select Site --</option>
-                                <?php foreach ($sites as $st):
-                                    $label = $st['site_name'];
-                                    if (!empty($st['remarks'])) $label .= ' - '.$st['remarks'];
-                                ?>
-                                    <option value="<?= (int)$st['site_id'] ?>"><?= htmlspecialchars($label) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Terms of Payment</label>
-
-                            <select name="terms_select" id="terms_select" class="form-select " required>
-                                <option value="*" selected>* (No cash payment)</option>
-                                <option value="15">15 Days</option>
-                                <option value="30">30 Days</option>
-                                <option value="45">45 Days</option>
-                                <option value="custom">Custom</option>
-                            </select>
-
-                            <input type="number"
-                                name="terms_custom"
-                                id="terms_custom"
-                                class="form-control mt-2 d-none"
-                                placeholder="Enter number of days"
-                                min="0"
-                                max="365">
-                        </div>
-
-
-                        <div class="alert alert-secondary mb-0">
-                            SOA number is auto-generated.
-                        </div>
-                    </div>
-
-                    <div class="modal-footer">
-                        <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Close</button>
-                        <button class="btn btn-primary" type="submit">Create SOA</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
+            </tbody>
+        </table>
     </div>
+
+    <?php if ($total_pages > 1): ?>
+        <div class="card-footer">
+            <nav>
+                <ul class="pagination mb-0">
+                    <li class="page-item <?= $current_page <= 1 ? 'disabled' : '' ?>">
+                        <a class="page-link" href="?<?= htmlspecialchars($queryBase) ?>&p=<?= $current_page - 1 ?>">&laquo;</a>
+                    </li>
+
+                    <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                        <li class="page-item <?= $i == $current_page ? 'active' : '' ?>">
+                            <a class="page-link" href="?<?= htmlspecialchars($queryBase) ?>&p=<?= $i ?>"><?= $i ?></a>
+                        </li>
+                    <?php endfor; ?>
+
+                    <li class="page-item <?= $current_page >= $total_pages ? 'disabled' : '' ?>">
+                        <a class="page-link" href="?<?= htmlspecialchars($queryBase) ?>&p=<?= $current_page + 1 ?>">&raquo;</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    <?php endif; ?>
+
+    <!-- SOA CREATE MODAL (BACKEND ENABLED) -->
+    <div class="modal fade" id="soaCreateModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <form class="modal-content" id="soa-create-form" method="POST" action="pages/trans_entry.php">
+                <input type="hidden" name="form_type" value="soa">
+                <input type="hidden" name="action" value="create">
+
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New SOA</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Company</label>
+                        <select name="company_id" class="form-select" required>
+                            <option value="">-- Select Company --</option>
+                            <?php foreach ($companies as $co): ?>
+                                <option value="<?= (int)$co['company_id'] ?>"><?= htmlspecialchars($co['company_name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Site</label>
+                        <select name="site_id" class="form-select" required>
+                            <option value="">-- Select Site --</option>
+                            <?php foreach ($sites as $st):
+                                $label = $st['site_name'];
+                                if (!empty($st['remarks'])) $label .= ' - ' . $st['remarks'];
+                            ?>
+                                <option value="<?= (int)$st['site_id'] ?>"><?= htmlspecialchars($label) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Terms of Payment</label>
+
+                        <select name="terms_select" id="terms_select" class="form-select " required>
+                            <option value="*" selected>* (No cash payment)</option>
+                            <option value="15">15 Days</option>
+                            <option value="30">30 Days</option>
+                            <option value="45">45 Days</option>
+                            <option value="custom">Custom</option>
+                        </select>
+
+                        <input type="number"
+                            name="terms_custom"
+                            id="terms_custom"
+                            class="form-control mt-2 d-none"
+                            placeholder="Enter number of days"
+                            min="0"
+                            max="365">
+                    </div>
+
+
+                    <div class="alert alert-secondary mb-0">
+                        SOA number is auto-generated.
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Close</button>
+                    <button class="btn btn-primary" type="submit">Create SOA</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
 </div>
 
 <script>
-window.currentSOAId     = <?= json_encode($soa_id) ?>;
+    window.currentSOAId = <?= json_encode($soa_id) ?>;
 
-document.addEventListener('shown.bs.modal', function (event) {
-    if (event.target.id !== 'soaCreateModal') return;
+    document.addEventListener('shown.bs.modal', function(event) {
+        if (event.target.id !== 'soaCreateModal') return;
 
-    const termsSelect = document.getElementById('terms_select');
-    const termsCustom = document.getElementById('terms_custom');
+        const termsSelect = document.getElementById('terms_select');
+        const termsCustom = document.getElementById('terms_custom');
 
-    if (!termsSelect || !termsCustom) return;
+        if (!termsSelect || !termsCustom) return;
 
-    function toggleCustomTerms() {
-        if (termsSelect.value === 'custom') {
-            termsCustom.classList.remove('d-none');
-            termsCustom.required = true;
-        } else {
-            termsCustom.classList.add('d-none');
-            termsCustom.required = false;
-            termsCustom.value = '';
+        function toggleCustomTerms() {
+            if (termsSelect.value === 'custom') {
+                termsCustom.classList.remove('d-none');
+                termsCustom.required = true;
+            } else {
+                termsCustom.classList.add('d-none');
+                termsCustom.required = false;
+                termsCustom.value = '';
+            }
         }
-    }
 
-    // initial state when modal opens
-    toggleCustomTerms();
+        // initial state when modal opens
+        toggleCustomTerms();
 
-    // avoid double binding
-    termsSelect.removeEventListener('change', toggleCustomTerms);
-    termsSelect.addEventListener('change', toggleCustomTerms);
-});
-
+        // avoid double binding
+        termsSelect.removeEventListener('change', toggleCustomTerms);
+        termsSelect.addEventListener('change', toggleCustomTerms);
+    });
 </script>

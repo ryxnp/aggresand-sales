@@ -62,7 +62,6 @@ window.TransEntryPage = (() => {
         const actionFld   = $("#delivery_action");
         const idFld       = $("#del_id");
 
-        const customerSel = $("#delivery_customer_id");
         const deliveryDate= $("#delivery_date");
         // const billingDate = $("#billing_date");
         const drNo        = $("#dr_no");
@@ -90,7 +89,6 @@ window.TransEntryPage = (() => {
 
             form.attr("action", "pages/trans_entry.php");
 
-            customerSel.val("").trigger("change");
             deliveryDate.val("");
             // billingDate.val("");
             drNo.val("");
@@ -159,8 +157,6 @@ window.TransEntryPage = (() => {
             actionFld.val("update");
             idFld.val(delId);
             form.attr("action", "pages/trans_entry.php");
-
-            customerSel.val(String(cid)).trigger("change");
 
             deliveryDate.val(delDate || "");
             // billingDate.val(billDate || "");
@@ -285,58 +281,17 @@ window.TransEntryPage = (() => {
         });
     }
 
-    function initCollapseToggles() {
-        // Any button with data-bs-toggle="collapse" and data-bs-target
-        document.querySelectorAll('[data-bs-toggle="collapse"][data-bs-target]').forEach(btn => {
-            const targetSelector = btn.getAttribute('data-bs-target');
-            const target = document.querySelector(targetSelector);
-            if (!target) return;
-
-            const updateLabel = () => {
-                const isShown = target.classList.contains('show');
-                btn.textContent = isShown ? 'Hide form' : 'Show form';
-            };
-
-            // Initial label
-            updateLabel();
-
-            target.addEventListener('shown.bs.collapse', updateLabel);
-            target.addEventListener('hidden.bs.collapse', updateLabel);
-        });
-    }
-
     function init() {
         initSelects();
         initSOABar();
         initCustomerForm();
         initDeliveryForm();
         initFiltersAndPagination();
-        initCollapseToggles();
     }
 
     return { init };
 
 })();
-
-function initCollapseToggles() {
-    // Any button with data-bs-toggle="collapse" and data-bs-target
-    document.querySelectorAll('[data-bs-toggle="collapse"][data-bs-target]').forEach(btn => {
-        const targetSelector = btn.getAttribute('data-bs-target');
-        const target = document.querySelector(targetSelector);
-        if (!target) return;
-
-        const updateLabel = () => {
-            const isShown = target.classList.contains('show');
-            btn.textContent = isShown ? 'Hide form' : 'Show form';
-        };
-
-        // Initial label
-        updateLabel();
-
-        target.addEventListener('shown.bs.collapse', updateLabel);
-        target.addEventListener('hidden.bs.collapse', updateLabel);
-    });
-}
 
 function initSOABar() {
         const $soaSelect = $('#soa_select');
@@ -392,3 +347,12 @@ function initSOABar() {
         }
         applySOAState($soaSelect.val());
     }
+
+function reloadTransEntry() {
+    if (typeof window.loadPage === 'function') {
+        const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+        window.loadPage('trans_entry.php', params.toString());
+    } else {
+        location.reload();
+    }
+}

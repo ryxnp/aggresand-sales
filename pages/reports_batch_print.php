@@ -35,17 +35,12 @@ $soaStmt = $conn->prepare("
     FROM statement_of_account s
     JOIN company c ON s.company_id = c.company_id
     JOIN site si ON s.site_id = si.site_id
-    WHERE s.status = 'finalized'
       AND s.is_deleted = 0
       AND s.billing_date = :billing_date
     ORDER BY s.soa_no ASC
 ");
 $soaStmt->execute([':billing_date' => $billing_date]);
 $soas = $soaStmt->fetchAll(PDO::FETCH_ASSOC);
-
-if (!$soas) {
-    die('No finalized SOAs found for this billing date.');
-}
 
 /* =========================
    PRINT SINGLE SOA

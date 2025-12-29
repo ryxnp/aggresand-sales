@@ -3,7 +3,7 @@ function render_soa_print(PDO $conn, int $soa_id, string $header_image, string $
 
     /* ---------- FETCH SOA ---------- */
     $soaStmt = $conn->prepare("
-        SELECT s.soa_no, s.terms, s.status,
+        SELECT s.soa_no, s.terms,
                co.company_name,
                si.site_name
         FROM statement_of_account s
@@ -14,10 +14,6 @@ function render_soa_print(PDO $conn, int $soa_id, string $header_image, string $
     ");
     $soaStmt->execute([':id' => $soa_id]);
     $soa = $soaStmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$soa || $soa['status'] !== 'finalized') {
-        return;
-    }
 
     /* ---------- FETCH DELIVERIES ---------- */
     $stmt = $conn->prepare("

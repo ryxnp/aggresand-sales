@@ -20,7 +20,6 @@ $stmt = $conn->prepare("
     FROM statement_of_account s
     JOIN company c ON s.company_id = c.company_id
     JOIN site si ON s.site_id = si.site_id
-    WHERE s.status = 'finalized'
       AND s.is_deleted = 0
       AND s.billing_date = :billing_date
     ORDER BY s.soa_no ASC
@@ -78,7 +77,7 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <div class="col-lg-8">
             <div class="card h-100">
                 <div class="card-header fw-bold">
-                    Finalized SOAs — <?= htmlspecialchars($billing_date) ?>
+                    Available SOAs — <?= htmlspecialchars($billing_date) ?>
                 </div>
 
                 <div class="card-body table-responsive">

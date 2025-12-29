@@ -29,7 +29,6 @@ $soaStmt = $conn->prepare("
         s.soa_no,
         s.billing_date,
         s.terms,
-        s.status,
         c.company_name,
         si.site_name
     FROM statement_of_account s
