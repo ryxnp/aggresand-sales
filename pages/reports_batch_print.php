@@ -47,7 +47,7 @@ $soas = $soaStmt->fetchAll(PDO::FETCH_ASSOC);
 ========================= */
 function printSOA(PDO $conn, array $soa, bool $pageBreak)
 {
-    $rowsPerPage = 27;
+    $rowsPerPage = 24;
 
     $stmt = $conn->prepare("
         SELECT

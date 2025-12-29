@@ -8,13 +8,6 @@ $admin       = $_SESSION['admin_id'] ?? null;
 $role        = $_SESSION['role'] ?? '';
 $redirectUrl = '/main.php#accounts.php';
 
-/* ---------------------- SECURITY ---------------------- */
-// if (!$admin || $role !== 'Admin') {
-//     $_SESSION['alert'] = ['type' => 'danger', 'message' => 'Access denied'];
-//     header("Location: $redirectUrl");
-//     exit;
-// }
-
 /* ---------------------- CRUD HANDLING ---------------------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 

@@ -57,238 +57,137 @@ window.TransEntryPage = (() => {
     }
 
     function initDeliveryForm() {
-        const form        = $("#delivery-form");
-        const formTitle   = $("#delivery-form-title");
-        const actionFld   = $("#delivery_action");
-        const idFld       = $("#del_id");
+    const form         = $("#delivery-form");
+    const actionFld    = $("#delivery_action");
+    const idFld        = $("#del_id");
 
-        const deliveryDate= $("#delivery_date");
-        // const billingDate = $("#billing_date");
-        const drNo        = $("#dr_no");
-        const poNumber    = $("#po_number");
-        const terms       = $("#terms");
-        const truckSel    = $("#truck_id");
-        const materialSel = $("#material_id");
-        const materialName= $("#material_name");
-        const quantity    = $("#quantity");
-        const unitPrice   = $("#unit_price");
-        const statusSel   = $("#delivery_status");
-        const totalAmount = $("#total_amount");
+    const deliveryDate = $("#delivery_date");
+    const drNo         = $("#dr_no");
+    const poNumber     = $("#po_number");
+    const truckSel     = $("#truck_id");
+    const materialSel  = $("#material_id");
+    const materialName = $("#material_name");
+    const quantity     = $("#quantity");
+    const unitPrice    = $("#unit_price");
+    const statusSel    = $("#delivery_status");
+    const totalAmount  = $("#total_amount");
 
-        const submitBtn   = $("#delivery-submit-btn");
-        const cancelBtn   = $("#delivery-cancel-edit-btn");
+    const submitBtn    = $("#delivery-submit-btn");
+    const cancelBtn    = $("#delivery-cancel-edit-btn");
 
-        function resetForm(force = false) {
-            if ($("#insert_mode").val() === "1" && !force) {
-                $("#insert_mode").val("0");
-                return;
-            }
+    /* ================= TOTAL ================= */
+    function updateTotal() {
+        const q = parseFloat(quantity.val()) || 0;
+        const p = parseFloat(unitPrice.val()) || 0;
+        totalAmount.val(q && p ? (q * p).toFixed(2) : "");
+    }
 
-            actionFld.val("create");
-            idFld.val("");
+    quantity.on("input", updateTotal);
+    unitPrice.on("input", updateTotal);
 
-            form.attr("action", "pages/trans_entry.php");
-
-            deliveryDate.val("");
-            // billingDate.val("");
-            drNo.val("");
-            poNumber.val("");
-            terms.val("");
-            truckSel.val("").trigger("change");
-            materialSel.val("").trigger("change");
-            materialName.val("");
-            quantity.val("");
-            unitPrice.val("");
-            statusSel.val("pending");
-            totalAmount.val("");
-
-            formTitle.text("Delivery");
-            submitBtn.text("Save Delivery");
-            cancelBtn.addClass("d-none");
-            $("#delivery-insert-btn").removeClass("d-none");
-        }
-
-
-        function updateTotal() {
-            const q  = parseFloat(quantity.val()) || 0;
-            const up = parseFloat(unitPrice.val()) || 0;
-            const tot = q * up;
-            if (!isNaN(tot)) {
-                totalAmount.val(tot.toFixed(2));
-            } else {
-                totalAmount.val("");
-            }
-        }
-
-        // When material changes, only set hidden material name; price is manual
-        materialSel.on("change", function () {
-            const opt   = $(this).find("option:selected");
-            const name  = opt.text().trim();
-
-            materialName.val(name);
-            // Do NOT auto-set unit price anymore (manual input)
-            updateTotal();
-        });
-
-        quantity.on("input", updateTotal);
-        unitPrice.on("input", updateTotal);
-
-        resetForm();
-
-        // Edit delivery from row button
-        $(".trans-btn-edit-delivery").on("click", function () {
-            // ✅ DEFINE ROW FIRST
-            const row = $(this).closest(".delivery-row");
-
-            // 🔍 DEBUG (KEEP THIS FOR NOW)
-            console.log("EDIT TRUCK ID =", row.data("truck-id"));
-            const delId       = row.data("del-id");
-            const cid         = row.data("customer-id");
-            const delDate     = row.data("delivery-date");
-            const truckIdRaw = row.data("truck-id");
-            const dr          = row.data("dr-no");
-            const material    = row.data("material");
-            const qty         = row.data("quantity");
-            const price       = row.data("unit-price");
-            const stat        = row.data("status");
-            const po          = row.data("po") || "";
-            const termsVal    = row.data("terms") || "";
-
-            actionFld.val("update");
-            idFld.val(delId);
-            form.attr("action", "pages/trans_entry.php");
-
-            deliveryDate.val(delDate || "");
-            // billingDate.val(billDate || "");
-            drNo.val(dr || "");
-            poNumber.val(po);
-            terms.val(termsVal);
-            quantity.val(qty || "");
-            unitPrice.val(price || "");
-            
-            // STATUS
-            const statusVal = (row.data("status") || "").toString().toLowerCase();
-            statusSel.val(statusVal).trigger("change");
-            
-            // ===================== FIX TRUCK SELECTION =====================
-            const truckId = row.data("truck-id");
-
-            if (truckId && truckId !== 0) {
-                truckSel.val(String(truckId));
-                truckSel.trigger("change.select2");
-            } else {
-                truckSel.val("").trigger("change");
-            }
-
-            // Try to select matching material option by its text
-            let found = false;
-            materialSel.find("option").each(function () {
-                if ($(this).text().trim() === (material || "").trim()) {
-                    materialSel.val($(this).val()).trigger("change");
-                    found = true;
-                    return false;
-                }
-            });
-            if (!found) {
-                materialSel.val("").trigger("change");
-                materialName.val(material || "");
-            }
-
-            updateTotal();
-
-            submitBtn.text("Update Delivery");
-            formTitle.text("Edit Delivery #" + delId);
-            cancelBtn.removeClass("d-none");
-            $("#delivery-insert-btn").addClass("d-none");
-
-            $("#deliveryFormCollapse").collapse("show");
-            window.scrollTo({ top: 0, behavior: "smooth" });
-        });
-
-        // INSERT MODE (do not clear form)
-        $("#delivery-insert-btn").on("click", function () {
-        if ($(this).prop("disabled")) return;
-
-        // cache current form values
-        const data = {};
-        $("#delivery-form")
-            .find("input, select, textarea")
-            .each(function () {
-                if (this.name) {
-                    data[this.name] = $(this).val();
-                }
-            });
-
-        sessionStorage.setItem("delivery_insert_cache", JSON.stringify(data));
-
-        $("#delivery_action").val("create");
-        $("#del_id").val("");
-        $("#insert_mode").val("1");
-
-        $("#delivery-form")[0].submit();
+    materialSel.on("change", function () {
+        materialName.val($(this).find("option:selected").text().trim());
+        updateTotal();
     });
 
-        // RESTORE FORM AFTER INSERT (post-reload)
-        const cached = sessionStorage.getItem("delivery_insert_cache");
-        if (cached) {
-            const data = JSON.parse(cached);
-
-            Object.keys(data).forEach(name => {
-                const $el = $(`[name="${name}"]`);
-                if ($el.length) {
-                    $el.val(data[name]).trigger("change");
-                }
-            });
-
-            sessionStorage.removeItem("delivery_insert_cache");
-
-            // force form open
-            $("#deliveryFormCollapse").collapse("show");
-
-            // ensure create mode
-            $("#delivery_action").val("create");
-            $("#del_id").val("");
-
-            // recalc total
-            const q = parseFloat($("#quantity").val()) || 0;
-            const p = parseFloat($("#unit_price").val()) || 0;
-            $("#total_amount").val((q * p).toFixed(2));
-        }
-
-
-        cancelBtn.on("click", resetForm);
-    }
-
-    function initFiltersAndPagination() {
-        // Filters form → SPA reload
-        $(".trans-filter-form").on("submit", function (e) {
-            e.preventDefault();
-            const query = $(this).serialize();
-            if (typeof window.loadPage === "function") {
-                window.loadPage("trans_entry.php", query);
-            }
-        });
-
-        // Pagination links → SPA reload
-        $(".pagination .page-link").on("click", function (e) {
-            e.preventDefault();
-            const href  = $(this).attr("href") || "";
-            const parts = href.split("?");
-            const query = parts[1] || "";
-            if (typeof window.loadPage === "function") {
-                window.loadPage("trans_entry.php", query);
+    /* ================= PHP REHYDRATE FIX ================= */
+    // Re-select material after PHP session restore
+    const cachedMaterial = materialName.val();
+    if (cachedMaterial) {
+        materialSel.find("option").each(function () {
+            if ($(this).text().trim() === cachedMaterial.trim()) {
+                materialSel.val($(this).val()).trigger("change.select2");
+                return false;
             }
         });
     }
+
+    // Recalculate total on load (after PHP filled values)
+    updateTotal();
+
+    /* ================= CLEAR (EXPLICIT ONLY) ================= */
+    function clearForm() {
+        actionFld.val("create");
+        idFld.val("");
+        $("#insert_mode").val("0");
+
+        deliveryDate.val("");
+        drNo.val("");
+        poNumber.val("");
+        truckSel.val("").trigger("change.select2");
+        materialSel.val("").trigger("change.select2");
+        materialName.val("");
+        quantity.val("");
+        unitPrice.val("");
+        statusSel.val("pending");
+        totalAmount.val("");
+
+        submitBtn.text("Save Delivery");
+        cancelBtn.addClass("d-none");
+        $("#delivery-insert-btn").removeClass("d-none");
+    }
+
+    /* ================= EDIT ================= */
+    $(".trans-btn-edit-delivery").on("click", function () {
+        const row = $(this).closest(".delivery-row");
+
+        actionFld.val("update");
+        idFld.val(row.data("del-id"));
+
+        deliveryDate.val(row.data("delivery-date") || "");
+        drNo.val(row.data("dr-no") || "");
+        poNumber.val(row.data("po") || "");
+        quantity.val(row.data("quantity") || "");
+        unitPrice.val(row.data("unit-price") || "");
+        statusSel.val((row.data("status") || "pending").toLowerCase());
+
+        const truckId = row.data("truck-id");
+        truckSel.val(truckId ? String(truckId) : "").trigger("change.select2");
+
+        const material = row.data("material") || "";
+        let found = false;
+        materialSel.find("option").each(function () {
+            if ($(this).text().trim() === material.trim()) {
+                materialSel.val($(this).val()).trigger("change.select2");
+                found = true;
+                return false;
+            }
+        });
+        if (!found) materialName.val(material);
+
+        updateTotal();
+
+        submitBtn.text("Update Delivery");
+        cancelBtn.removeClass("d-none");
+        $("#delivery-insert-btn").addClass("d-none");
+
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+
+    /* ================= INSERT ================= */
+    $("#delivery-insert-btn").on("click", function () {
+        if ($(this).prop("disabled")) return;
+
+        // always return to CREATE mode
+        actionFld.val("create");
+        idFld.val("");
+        $("#insert_mode").val("1");
+
+        form[0].submit();
+    });
+
+    /* ================= CANCEL ================= */
+    cancelBtn.on("click", clearForm);
+}
 
     function init() {
-        restoreSOAFromHashOnReload();
-        autoRefreshAfterCRUD();
+        loadTransEntryOnce();  
         initSelects();
         initSOABar();
         initCustomerForm();
         initDeliveryForm();
-        initFiltersAndPagination();
+        initEntryModeToggle();
+        initBulkRecordForm();
     }
 
     return { init };
@@ -333,11 +232,10 @@ function initSOABar() {
     }
 }
 
-        $soaSelect.on('change', function () {
-            const soaId = this.value || '';
-            const current = getSOAFromHash();
-            if (soaId === current) return;
+        $soaSelect.on('change', function (e, meta) {
+            if (meta?.silent) return;
 
+            const soaId = this.value || '';
             history.replaceState(null, '', '#trans_entry.php' + (soaId ? '?soa_id=' + soaId : ''));
             window.loadPage?.('trans_entry.php', soaId ? 'soa_id=' + soaId : '');
         });
@@ -345,7 +243,7 @@ function initSOABar() {
         // INITIAL LOAD
         const initialSOA = getSOAFromHash();
         if (initialSOA) {
-            $soaSelect.val(initialSOA).trigger('change.select2');
+            $soaSelect.val(initialSOA).trigger('change.select2', { silent: true });
         }
         applySOAState($soaSelect.val());
     }
@@ -359,48 +257,391 @@ function reloadTransEntry() {
     }
 }
 
-function autoRefreshAfterCRUD() {
+function loadTransEntryOnce() {
+    if (window.__transEntryLoaded) return;
+
     const hash = window.location.hash;
-    if (!hash.includes('refresh=1')) return;
+    if (!hash.includes('trans_entry.php')) return;
 
     const clean = hash.replace('#', '');
     const [page, query] = clean.split('?');
 
-    const params = new URLSearchParams(query || '');
-    params.delete('refresh');
+    window.__transEntryLoaded = true;
 
-    // clean URL
-    history.replaceState(
-        null,
-        '',
-        '#' + page + (params.toString() ? '?' + params.toString() : '')
-    );
-
-    // 🔄 force SPA reload
     if (typeof window.loadPage === 'function') {
-        window.loadPage(page, params.toString());
-    } else {
-        location.reload();
+        window.loadPage(page, query || '');
     }
 }
 
-function restoreSOAFromHashOnReload() {
-    // Prevent infinite loop
-    if (window.__soaRestored) return;
+$(document).on("click", ".pagination a.page-link", function (e) {
+    const href = $(this).attr("href");
+    if (!href || href === "#") return;
 
-    // Only on hard reload
-    if (performance.navigation.type !== performance.navigation.TYPE_RELOAD) return;
+    e.preventDefault();
 
-    const hash = window.location.hash;
-    if (!hash || !hash.includes('trans_entry.php')) return;
+    // Extract query string
+    const query = href.startsWith("?") ? href.substring(1) : "";
 
-    const clean = hash.replace('#', '');
-    const [page, query] = clean.split('?');
-    if (!query || !query.includes('soa_id=')) return;
+    if (typeof window.loadPage === "function") {
+        window.loadPage("trans_entry.php", query);
+    } else {
+        // fallback: normal navigation
+        window.location.href = href;
+    }
+});
 
-    // mark as restored BEFORE loading
-    window.__soaRestored = true;
 
-    // 🔄 single forced SPA load
-    window.loadPage(page, query);
+// Toggle between Single and Bulk Entry Modes
+function initEntryModeToggle() {
+    const STORAGE_KEY = "trans_entry_mode"; // single | bulk
+
+    function hasSOA() {
+        return !!window.currentSOAId;
+    }
+
+    function updateBulkControls() {
+        const enabled = hasSOA();
+
+        $("#bulk-add-row")
+            .prop("disabled", !enabled)
+            .toggleClass("disabled", !enabled);
+
+        if (!enabled) {
+            $("#bulk-add-row").attr("title", "Please select an SOA first");
+        } else {
+            $("#bulk-add-row").removeAttr("title");
+        }
+    }
+
+    function showSingle(save = true) {
+        $("#single-entry-card").removeClass("d-none");
+        $("#bulk-entry-card").addClass("d-none");
+
+        $("#btn-single-entry")
+            .addClass("btn-primary")
+            .removeClass("btn-outline-primary");
+
+        $("#btn-bulk-entry")
+            .addClass("btn-outline-primary")
+            .removeClass("btn-primary");
+
+        if (save) localStorage.setItem(STORAGE_KEY, "single");
+    }
+
+    function showBulk(save = true) {
+        $("#bulk-entry-card").removeClass("d-none");
+        $("#single-entry-card").addClass("d-none");
+
+        $("#btn-bulk-entry")
+            .addClass("btn-primary")
+            .removeClass("btn-outline-primary");
+
+        $("#btn-single-entry")
+            .addClass("btn-outline-primary")
+            .removeClass("btn-primary");
+
+        updateBulkControls();
+
+        if (save) localStorage.setItem(STORAGE_KEY, "bulk");
+    }
+
+    // Prevent duplicate bindings (AJAX safe)
+    $(document).off("click", "#btn-single-entry");
+    $(document).off("click", "#btn-bulk-entry");
+
+    $(document).on("click", "#btn-single-entry", function () {
+        showSingle(true);
+    });
+
+    $(document).on("click", "#btn-bulk-entry", function () {
+        showBulk(true);
+    });
+
+    // Restore last selected mode
+    const savedMode = localStorage.getItem(STORAGE_KEY);
+    if (savedMode === "bulk") {
+        showBulk(false);
+    } else {
+        showSingle(false);
+    }
 }
+
+// Bulk Entry: Add Row
+function initBulkRecordForm() {
+    const MAX_ROWS = 10;
+
+    /* ================= OPTIONS ================= */
+
+    function truckOptionsHtml() {
+        const $src = $("#truck_id option");
+        if (!$src.length) return '<option value="">-- Select Truck --</option>';
+        return $src.map((_, o) =>
+            `<option value="${$(o).attr("value") ?? ""}">${$(o).text()}</option>`
+        ).get().join("");
+    }
+
+    function materialOptionsHtml() {
+        const $src = $("#material_id option");
+        if (!$src.length) return '<option value="">-- Select Material --</option>';
+        return $src.map((_, o) =>
+            `<option value="${$(o).attr("value") ?? ""}">${$(o).text()}</option>`
+        ).get().join("");
+    }
+
+    function hasSOA() {
+        return !!window.currentSOAId;
+    }
+
+    function rowCount() {
+        return $("#bulk-record-table tbody tr").length;
+    }
+
+    function updateBulkButtons() {
+        const canAdd = hasSOA() && rowCount() < MAX_ROWS;
+        $("#bulk-add-row").prop("disabled", !canAdd);
+
+        const canSave = hasSOA() && rowCount() > 0;
+        $("#bulk-save").prop("disabled", !canSave);
+    }
+
+    /* ================= CALCULATIONS ================= */
+
+    function recalcRowTotal($tr) {
+        const qty = parseFloat($tr.find(".bulk-qty").val()) || 0;
+        const price = parseFloat($tr.find(".bulk-unit-price").val()) || 0;
+        const total = qty * price;
+        $tr.find(".bulk-total").val(total ? total.toFixed(2) : "");
+    }
+
+    /* ================= ADD ROW ================= */
+
+    function addRow() {
+        if (!hasSOA() || rowCount() >= MAX_ROWS) {
+            updateBulkButtons();
+            return;
+        }
+
+        const tr = `
+        <tr>
+            <td>
+                <input type="date" class="form-control bulk-date" name="bulk_delivery_date[]">
+            </td>
+            <td>
+                <input type="text" class="form-control bulk-dr" name="bulk_dr_no[]">
+            </td>
+            <td>
+                <input type="text" class="form-control bulk-po" name="bulk_po_number[]">
+            </td>
+            <td>
+                <select class="form-select bulk-truck" name="bulk_truck_id[]">
+                    ${truckOptionsHtml()}
+                </select>
+            </td>
+            <td>
+                <select class="form-select bulk-material" name="bulk_material_id[]">
+                    ${materialOptionsHtml()}
+                </select>
+                <input type="hidden" class="bulk-material-name" name="bulk_material_name[]">
+            </td>
+            <td>
+                <input type="number" step="0.01" class="form-control bulk-qty" name="bulk_quantity[]">
+            </td>
+            <td>
+                <input type="number" step="0.01" class="form-control bulk-unit-price" name="bulk_unit_price[]">
+            </td>
+            <td>
+                <input type="text" class="form-control bulk-total" readonly>
+            </td>
+            <td>
+                <select class="form-select bulk-status" name="bulk_status[]">
+                    <option value="pending" selected>Pending</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn btn-sm btn-outline-danger bulk-remove-row">&times;</button>
+            </td>
+        </tr>
+        `;
+
+        $("#bulk-record-table tbody").append(tr);
+        updateBulkButtons();
+    }
+
+    /* ================= VALIDATION ================= */
+
+    function validateBulkRows() {
+        if (!hasSOA()) {
+            alert("Please select an SOA first.");
+            return false;
+        }
+
+        let error = "";
+
+        $("#bulk-record-table tbody tr").each(function (i) {
+            const row = i + 1;
+            const date = $(this).find(".bulk-date").val();
+            const material = $(this).find(".bulk-material").val();
+            const qty = parseFloat($(this).find(".bulk-qty").val()) || 0;
+            const price = parseFloat($(this).find(".bulk-unit-price").val()) || 0;
+
+            if (!date) error = `Row ${row}: Delivery date is required`;
+            else if (!material) error = `Row ${row}: Material is required`;
+            else if (qty <= 0) error = `Row ${row}: Quantity must be greater than 0`;
+            else if (price <= 0) error = `Row ${row}: Unit price must be greater than 0`;
+
+            if (error) return false;
+        });
+
+        if (error) {
+            alert(error);
+            return false;
+        }
+
+        return true;
+    }
+
+    /* ================= EVENTS (AJAX SAFE) ================= */
+
+    $(document).off("click.bulk", "#bulk-add-row");
+    $(document).off("click.bulk", ".bulk-remove-row");
+    $(document).off("input.bulk", ".bulk-qty, .bulk-unit-price");
+    $(document).off("change.bulk", ".bulk-material");
+    $(document).off("click.bulk", "#bulk-save");
+
+    $(document).on("click.bulk", "#bulk-add-row", function () {
+        addRow();
+    });
+
+    $(document).on("click.bulk", ".bulk-remove-row", function () {
+        $(this).closest("tr").remove();
+        updateBulkButtons();
+    });
+
+    $(document).on("input.bulk", ".bulk-qty, .bulk-unit-price", function () {
+        recalcRowTotal($(this).closest("tr"));
+    });
+
+    $(document).on("change.bulk", ".bulk-material", function () {
+        const $tr = $(this).closest("tr");
+        const name = $(this).find("option:selected").text().trim();
+        $tr.find(".bulk-material-name").val(name);
+        recalcRowTotal($tr);
+    });
+
+    /* ================= BULK SAVE ================= */
+
+    $(document).on("click.bulk", "#bulk-save", function () {
+
+    const $btn = $(this);
+
+    // If already confirmed → final save
+    if ($btn.data("confirmed")) {
+        $("#bulk-record-form")
+            .append('<input type="hidden" name="action" value="bulk_create">')
+            .append('<input type="hidden" name="form_type" value="delivery">')
+            .submit();
+        return;
+    }
+
+    // First click = VALIDATE
+    clearBulkErrors();
+
+    if (!frontendBulkValidate()) {
+        return;
+    }
+
+    // send validation request
+    const $form = $("#bulk-record-form");
+
+    $form.find('input[name="action"]').remove();
+    $form.append('<input type="hidden" name="action" value="bulk_validate">');
+    $form.append('<input type="hidden" name="form_type" value="delivery">');
+
+    $.post("pages/trans_entry.php", $form.serialize(), function (res) {
+
+        if (res.status === "error") {
+            applyBulkErrors(res.errors);
+            return;
+        }
+
+        // no errors → lock form + confirm mode
+        lockBulkForm();
+        $btn
+            .text("Confirm Save")
+            .addClass("btn-danger")
+            .data("confirmed", true);
+
+    }, "json");
+});
+
+
+    /* ================= INIT ================= */
+
+    updateBulkButtons();
+}
+
+function frontendBulkValidate() {
+    let valid = true;
+
+    $("#bulk-record-table tbody tr").each(function (i) {
+        const $tr = $(this);
+
+        const date = $tr.find(".bulk-date").val();
+        const qty  = parseFloat($tr.find(".bulk-qty").val());
+        const prc  = parseFloat($tr.find(".bulk-unit-price").val());
+
+        if (!date) {
+            markError($tr.find(".bulk-date"));
+            valid = false;
+        }
+        if (!qty || qty <= 0) {
+            markError($tr.find(".bulk-qty"));
+            valid = false;
+        }
+        if (!prc || prc <= 0) {
+            markError($tr.find(".bulk-unit-price"));
+            valid = false;
+        }
+    });
+
+    return valid;
+}
+
+function markError($el) {
+    $el.addClass("is-invalid");
+}
+
+function clearBulkErrors() {
+    $("#bulk-record-table .is-invalid").removeClass("is-invalid");
+}
+
+function applyBulkErrors(errors) {
+    errors.forEach(err => {
+        const $row = $("#bulk-record-table tbody tr").eq(err.row);
+        const $field = $row.find(`[name="${err.field}[]"]`);
+        $field.addClass("is-invalid");
+    });
+}
+
+function lockBulkForm() {
+
+    // Inputs → readonly (still submitted)
+    $("#bulk-record-table input")
+        .prop("readonly", true)
+        .addClass("bg-light");
+
+    // Selects → visually locked but still submitted
+    $("#bulk-record-table select")
+        .addClass("bulk-select-locked");
+
+    // Prevent interaction
+    $("#bulk-record-table select").on("mousedown.bulklock", function (e) {
+        e.preventDefault();
+    });
+
+    // Buttons disabled
+    $("#bulk-add-row, .bulk-remove-row").prop("disabled", true);
+}
+

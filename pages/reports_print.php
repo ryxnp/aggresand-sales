@@ -73,7 +73,7 @@ if ($totalRows === 0) {
 /* =========================
    TOTALS
 ========================= */
-$rowsPerPage = 27;
+$rowsPerPage = 24;
 $totalPages  = max(1, ceil($totalRows / $rowsPerPage));
 $pageClass   = $totalRows > 20 ? 'page dense-table' : 'page';
 

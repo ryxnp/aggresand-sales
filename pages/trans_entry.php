@@ -22,6 +22,9 @@ if (isset($_GET['soa_id']) && ctype_digit((string)$_GET['soa_id'])) {
 $soa_id = (isset($_GET['soa_id']) && ctype_digit((string)$_GET['soa_id'])) ? (int)$_GET['soa_id'] : 0;
 $soa = null;
 
+$formCache = $_SESSION['delivery_form_cache'] ?? null;
+unset($_SESSION['delivery_form_cache']);
+
 if ($soa_id > 0) {
     $stmt = $conn->prepare("
         SELECT soa_id, soa_no, company_id, site_id, terms
@@ -43,340 +46,7 @@ if ($soa_id > 0) {
    HANDLE POST (SOA + CUSTOMER + DELIVERY)
    ============================================================ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
-    if (!$admin) {
-        $_SESSION['alert'] = ['type' => 'danger', 'message' => 'Not authenticated'];
-        header("Location: $redirectUrl");
-        exit;
-    }
-
-    $formType = $_POST['form_type'] ?? '';
-
-    try {
-
-        /* ===================== SOA (CREATE / FINALIZE) ===================== */
-        if ($formType === 'soa') {
-            $action = $_POST['action'] ?? 'create';
-
-            if ($action !== 'create') {
-                throw new Exception('Invalid SOA action');
-            }
-
-            $company_id = (int)($_POST['company_id'] ?? 0);
-            $site_id    = (int)($_POST['site_id'] ?? 0);
-
-            if ($company_id <= 0 || $site_id <= 0) {
-                throw new Exception('Company and Site are required');
-            }
-
-            // Terms handling
-            $terms_select = $_POST['terms_select'] ?? '*';
-            if ($terms_select === 'custom') {
-                $terms_custom = (int)($_POST['terms_custom'] ?? 0);
-                if ($terms_custom <= 0) {
-                    throw new Exception('Custom terms must be greater than 0');
-                }
-                $terms = (string)$terms_custom;
-            } else {
-                $terms = $terms_select;
-            }
-
-            // Generate SOA number
-            $soa_no = generate_soa_no($conn);
-
-            $audit = audit_on_create($admin);
-            $billing_date = date('Y-m-d');
-            $stmt = $conn->prepare("
-        INSERT INTO statement_of_account (
-            soa_no,
-            company_id,
-            site_id,
-            billing_date,
-            terms,
-            is_deleted,
-            date_created,
-            date_edited,
-            created_by,
-            edited_by
-        ) VALUES (
-            :soa_no,
-            :company_id,
-            :site_id,
-            :billing_date,
-            :terms,
-            'draft',
-            0,
-            :date_created,
-            :date_edited,
-            :created_by,
-            :edited_by
-        )
-    ");
-
-            $stmt->execute([
-                ':soa_no'        => $soa_no,
-                ':company_id'    => $company_id,
-                ':site_id'       => $site_id,
-                ':billing_date'  => $billing_date,
-                ':terms'         => $terms,
-                ':date_created'  => $audit['date_created'],
-                ':date_edited'   => $audit['date_edited'],
-                ':created_by'    => $audit['created_by'],
-                ':edited_by'     => $audit['edited_by'],
-            ]);
-
-            $newSoaId = (int)$conn->lastInsertId();
-
-            audit_log('statement_of_account', $newSoaId, 'CREATE', null, $_POST, $admin);
-
-            $_SESSION['alert'] = [
-                'type'    => 'success',
-                'message' => 'SOA created'
-            ];
-
-            header("Location: /main.php#trans_entry.php?soa_id=" . $newSoaId);
-            exit;
-        }
-
-        /* ===================== DELIVERY ===================== */
-        if ($formType === 'delivery') {
-
-            $action = $_POST['action'] ?? 'create';
-            $id     = (int)($_POST['del_id'] ?? 0);
-
-            $soa_id_post = (int)($_POST['soa_id'] ?? 0);
-            if ($soa_id_post <= 0) {
-                throw new Exception('Please select an SOA first');
-            }
-
-            // ✅ ONLY validate delivery fields for CREATE / UPDATE
-            if (in_array($action, ['create', 'update'], true)) {
-
-                $delivery_date = trim($_POST['delivery_date'] ?? '');
-                if ($delivery_date === '') {
-                    throw new Exception('Delivery date is required');
-                }
-
-                $dr_no      = trim($_POST['dr_no'] ?? '');
-                $po_number  = trim($_POST['po_number'] ?? '') ?: null;
-                $truck_id   = (int)($_POST['truck_id'] ?? 0) ?: null;
-                $material   = trim($_POST['material_name'] ?? '');
-                $quantity   = (float)($_POST['quantity'] ?? 0);
-                $unit_price = (float)($_POST['unit_price'] ?? 0);
-                $status     = $_POST['status'] ?? 'pending';
-            }
-
-            // SOA validation (must exist)
-            $soaStmt = $conn->prepare("
-                SELECT soa_id, company_id
-                FROM statement_of_account
-                WHERE soa_id = :id AND is_deleted = 0
-                LIMIT 1
-            ");
-            $soaStmt->execute([':id' => $soa_id_post]);
-            $soaRow = $soaStmt->fetch(PDO::FETCH_ASSOC);
-            if (!$soaRow) throw new Exception('Invalid SOA selected');
-
-            $company_id = (int)$soaRow['company_id'];
-
-            if (in_array($action, ['create', 'update'], true)) {
-                $dr_no = trim((string)$dr_no);
-            }
-
-
-            // ================= DR NUMBER UNIQUENESS CHECK =================
-            if ($action === 'create') {
-
-                if ($dr_no !== '') {
-                    $chk = $conn->prepare("
-                        SELECT COUNT(*)
-                        FROM delivery
-                        WHERE TRIM(dr_no) = :dr_no
-                        AND is_deleted = 0
-                    ");
-                    $chk->execute([':dr_no' => $dr_no]);
-
-                    if ((int)$chk->fetchColumn() > 0) {
-                        throw new Exception('DR Number already exists. Please use a unique DR Number.');
-                    }
-                }
-            } elseif ($action === 'update') {
-
-                if ($id <= 0) throw new Exception('Invalid delivery ID');
-
-                // fetch old row early (needed for comparison)
-                $old = $conn->prepare("SELECT * FROM delivery WHERE del_id=:id AND is_deleted=0");
-                $old->execute([':id' => $id]);
-                $oldData = $old->fetch(PDO::FETCH_ASSOC);
-                if (!$oldData) throw new Exception('Delivery not found');
-
-                $old_dr = trim((string)($oldData['dr_no'] ?? ''));
-
-                // only check if DR was changed
-                if ($dr_no !== '' && $dr_no !== $old_dr) {
-                    $chk = $conn->prepare("
-                        SELECT COUNT(*)
-                        FROM delivery
-                        WHERE TRIM(dr_no) = :dr_no
-                        AND del_id != :del_id
-                        AND is_deleted = 0
-                    ");
-                    $chk->execute([
-                        ':dr_no'  => $dr_no,
-                        ':del_id' => $id
-                    ]);
-
-                    if ((int)$chk->fetchColumn() > 0) {
-                        throw new Exception('DR Number already exists. Please use a unique DR Number.');
-                    }
-                }
-
-                // ✅ IMPORTANT: reuse $oldData later in update block
-            }
-
-            if ($action === 'create') {
-                $audit = audit_on_create($admin);
-
-                $stmt = $conn->prepare("
-                    INSERT INTO delivery (
-                        soa_id, company_id, delivery_date, dr_no,
-                        truck_id, material,
-                        quantity, unit_price, po_number,
-                        status, is_deleted,
-                        date_created, date_edited, created_by, edited_by
-                    )
-                    VALUES
-                        (:soa_id, :company_id, :delivery_date, :dr_no,
-                         :truck_id, :material,
-                         :quantity, :unit_price, :po_number,
-                         :status, 0,
-                         :date_created, :date_edited, :created_by, :edited_by)
-                ");
-                $stmt->execute([
-                    ':soa_id'        => $soa_id_post,
-                    ':company_id'    => $company_id,
-                    ':delivery_date' => $delivery_date,
-                    ':dr_no'         => $dr_no,
-                    ':truck_id'      => $truck_id,
-                    ':material'      => $material,
-                    ':quantity'      => $quantity,
-                    ':unit_price'    => $unit_price,
-                    ':po_number'     => $po_number,
-                    ':status'        => $status,
-                    ':date_created'  => $audit['date_created'],
-                    ':date_edited'   => $audit['date_edited'],
-                    ':created_by'    => $audit['created_by'],
-                    ':edited_by'     => $audit['edited_by'],
-                ]);
-
-                if ($stmt->rowCount() === 0) {
-                    throw new Exception('Delivery insert failed (rowCount=0)');
-                }
-
-                $newDelId = (int)$conn->lastInsertId();
-                audit_log('delivery', $newDelId, 'CREATE', null, $_POST, $admin);
-
-                $_SESSION['alert'] = ['type' => 'success', 'message' => 'Delivery created'];
-
-                $insertMode = (int)($_POST['insert_mode'] ?? 0);
-
-                if ($insertMode === 1) {
-                    // stay on page, keep form values
-                    header("Location: /main.php#trans_entry.php?soa_id={$soa_id_post}&refresh=1");
-                } else {
-                    // normal save behavior
-                    header("Location: /main.php#trans_entry.php?soa_id={$soa_id_post}&refresh=1");
-                }
-                exit;
-            }
-
-            if ($action === 'update') {
-                if ($id <= 0) throw new Exception('Invalid delivery ID');
-
-                $audit = audit_on_update($admin);
-
-                $stmt = $conn->prepare("
-                    UPDATE delivery SET
-                        soa_id = :soa_id,
-                        company_id = :company_id,
-                        delivery_date = :delivery_date,
-                        dr_no = :dr_no,
-                        truck_id = :truck_id,
-                        material = :material,
-                        quantity = :quantity,
-                        unit_price = :unit_price,
-                        po_number = :po_number,
-                        status = :status,
-                        date_edited = :date_edited,
-                        edited_by = :edited_by
-                    WHERE del_id = :id
-                ");
-                $stmt->execute([
-                    ':id'            => $id,
-                    ':soa_id'        => $soa_id_post,
-                    ':company_id'    => $company_id,
-                    ':delivery_date' => $delivery_date,
-                    ':dr_no'         => $dr_no,
-                    ':truck_id'      => $truck_id,
-                    ':material'      => $material,
-                    ':quantity'      => $quantity,
-                    ':unit_price'    => $unit_price,
-                    ':po_number'     => $po_number,
-                    ':status'        => $status,
-                    ':date_edited'   => $audit['date_edited'],
-                    ':edited_by'     => $audit['edited_by'],
-                ]);
-                audit_log('delivery', $id, 'UPDATE', $oldData, $_POST, $admin);
-                $_SESSION['alert'] = ['type' => 'success', 'message' => 'Delivery updated'];
-                header("Location: /main.php#trans_entry.php?soa_id={$soa_id_post}&refresh=1");
-                exit;
-            }
-
-            if ($action === 'delete') {
-                if ($id <= 0) throw new Exception('Invalid delivery ID');
-
-                $old = $conn->prepare("SELECT * FROM delivery WHERE del_id=:id AND is_deleted=0");
-                $old->execute([':id' => $id]);
-                $oldData = $old->fetch(PDO::FETCH_ASSOC);
-                if (!$oldData) throw new Exception('Delivery not found');
-
-                $audit = audit_on_update($admin);
-
-                $stmt = $conn->prepare("
-        UPDATE delivery SET
-            is_deleted  = 1,
-            date_edited = :date_edited,
-            edited_by   = :edited_by
-        WHERE del_id = :id
-    ");
-                $stmt->execute([
-                    ':id'         => $id,
-                    ':date_edited' => $audit['date_edited'],
-                    ':edited_by'  => $audit['edited_by'],
-                ]);
-
-                audit_log('delivery', $id, 'DELETE', $oldData, ['is_deleted' => 1], $admin);
-
-                $_SESSION['alert'] = ['type' => 'success', 'message' => 'Delivery deleted'];
-                header("Location: /main.php#trans_entry.php?soa_id={$soa_id_post}&refresh=1");
-                exit;
-            }
-        }
-    } catch (Exception $e) {
-        $_SESSION['alert'] = ['type' => 'danger', 'message' => $e->getMessage()];
-
-        $query = [];
-        if ($soa_id > 0) $query[] = 'soa_id=' . $soa_id;
-        if (!empty($_POST['insert_mode'])) $query[] = 'keep=1';
-
-        $qs = $query ? '?' . implode('&', $query) : '';
-
-        header("Location: {$redirectUrl}{$qs}");
-        exit;
-    }
-
-    // fallback
-    header("Location: $redirectUrl");
+    require_once __DIR__ . '/../config/trans_entry_post.php';
     exit;
 }
 
@@ -427,7 +97,7 @@ $trucks = $conn->query("
     SELECT truck_id, plate_no
     FROM truck
     WHERE is_deleted = 0
-        AND status = 'active'
+    AND status = 'active'
     ORDER BY plate_no
 ")->fetchAll(PDO::FETCH_ASSOC);
 
@@ -593,16 +263,16 @@ $queryBase = http_build_query([
             <?= htmlspecialchars($_SESSION['alert']['message']) ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
-        
+
         <?php unset($_SESSION['alert']); ?>
     <?php } ?>
 
     <!-- ===================== SOA BAR ===================== -->
     <div class="row mb-4">
 
-        <!-- LEFT: DELIVERY FORM (65%) -->
-        <div class="col-lg-8">
-            <div class="card">
+        <!-- LEFT: DELIVERY FORM (75%) -->
+        <div class="col-lg-9">
+            <div class="card" id="single-entry-card">
                 <div class="card-header">Delivery</div>
                 <div class="card-body">
 
@@ -620,25 +290,31 @@ $queryBase = http_build_query([
                                 <div class="mb-3">
                                 </div>
 
-                                <!-- <div class="row mb-3">
-                                    <div class="col">
-                                        <label class="form-label">Delivery Date</label>
-                                        <input type="date" name="delivery_date" id="delivery_date" class="form-control" required>
-                                    </div>
-                                </div> -->
-
                                 <div class="row mb-3">
                                     <div class="col">
                                         <label class="form-label">Delivery Date</label>
-                                        <input type="date" name="delivery_date" id="delivery_date" class="form-control" required>
+                                        <input type="date"
+                                            name="delivery_date"
+                                            id="delivery_date"
+                                            class="form-control"
+                                            required
+                                            value="<?= htmlspecialchars($formCache['delivery_date'] ?? '') ?>">
                                     </div>
                                     <div class="col">
                                         <label class="form-label">DR No</label>
-                                        <input type="text" name="dr_no" id="dr_no" class="form-control">
+                                        <input type="text"
+                                            name="dr_no"
+                                            id="dr_no"
+                                            class="form-control"
+                                            value="<?= htmlspecialchars($formCache['dr_no'] ?? '') ?>">
                                     </div>
                                     <div class="col">
                                         <label class="form-label">PO Number</label>
-                                        <input type="text" name="po_number" id="po_number" class="form-control">
+                                        <input type="text"
+                                            name="po_number"
+                                            id="po_number"
+                                            class="form-control"
+                                            value="<?= htmlspecialchars($formCache['po_number'] ?? '') ?>">
                                     </div>
                                 </div>
 
@@ -669,38 +345,34 @@ $queryBase = http_build_query([
                                 <div class="row mb-3">
                                     <div class="col">
                                         <label class="form-label">Quantity</label>
-                                        <input type="number" step="0.01" name="quantity" id="quantity" class="form-control">
+                                        <input type="number"
+                                            step="0.01"
+                                            name="quantity"
+                                            id="quantity"
+                                            class="form-control"
+                                            value="<?= htmlspecialchars($formCache['quantity'] ?? '') ?>">
                                     </div>
                                     <div class="col">
                                         <label class="form-label">Unit Price</label>
-                                        <input type="number" step="0.01" name="unit_price" id="unit_price" class="form-control">
+                                        <input type="number"
+                                            step="0.01"
+                                            name="unit_price"
+                                            id="unit_price"
+                                            class="form-control"
+                                            value="<?= htmlspecialchars($formCache['unit_price'] ?? '') ?>">
                                     </div>
                                     <div class="col">
                                         <label class="form-label">Status</label>
                                         <select name="status" id="delivery_status" class="form-select">
-                                            <option value="pending">Pending</option>
-                                            <option value="delivered">Delivered</option>
-                                            <option value="cancelled">Cancelled</option>
+                                            <option value="pending" <?= (($formCache['status'] ?? '') === 'pending') ? 'selected' : '' ?>>Pending</option>
+                                            <option value="delivered" <?= (($formCache['status'] ?? '') === 'delivered') ? 'selected' : '' ?>>Delivered</option>
+                                            <option value="cancelled" <?= (($formCache['status'] ?? '') === 'cancelled') ? 'selected' : '' ?>>Cancelled</option>
                                         </select>
                                     </div>
                                 </div>
 
-                                <!-- <div class="mb-3">
-                                    <label class="form-label">Status</label>
-                                    <select name="status" id="delivery_status" class="form-select">
-                                        <option value="pending">Pending</option>
-                                        <option value="delivered">Delivered</option>
-                                        <option value="cancelled">Cancelled</option>
-                                    </select>
-                                </div> -->
-
                                 <button type="submit" class="btn btn-success" id="delivery-submit-btn">
                                     Save Delivery
-                                </button>
-                                <button type="button"
-                                    class="btn btn-outline-primary ms-2"
-                                    id="delivery-insert-btn">
-                                    Insert
                                 </button>
                                 <button type="button" class="btn btn-secondary d-none" id="delivery-cancel-edit-btn">Cancel</button>
                             </fieldset>
@@ -720,10 +392,59 @@ $queryBase = http_build_query([
 
                 </div>
             </div>
+            <!-- BULK ENTRY -->
+            <div class="card d-none" id="bulk-entry-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Bulk Delivery Entry</span>
+                    <small class="text-muted">Max 10 rows</small>
+                </div>
+
+                <div class="card-body">
+                    <form id="bulk-record-form" method="POST"
+                        action="pages/trans_entry.php">
+
+                        <input type="hidden" name="soa_id" value="<?= (int)$soa_id ?>">
+
+                        <div class="table-responsive">
+                            <table class="table table-bordered align-middle" id="bulk-record-table">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>DR #</th>
+                                        <th>PO #</th>
+                                        <th>Truck</th>
+                                        <th>Material</th>
+                                        <th width="90">Qty</th>
+                                        <th width="110">Unit Price</th>
+                                        <th width="110">Total</th>
+                                        <th width="110">Status</th>
+                                        <th width="50"></th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-3">
+                            <button type="button" class="btn btn-outline-primary" id="bulk-add-row">
+                                + Add Row
+                            </button>
+
+                            <div>
+                                <button type="button" class="btn btn-secondary" id="bulk-clear">Clear</button>
+                                <button type="button" class="btn btn-success" id="bulk-save" disabled>
+                                    Save All
+                                </button>
+                            </div>
+                        </div>
+
+                    </form>
+                </div>
+            </div>
         </div>
 
-        <!-- RIGHT: SOA PANEL (35%) -->
-        <div class="col-lg-4">
+        <!-- RIGHT: SOA PANEL (25%) -->
+        <div class="col-lg-3">
             <div class="card">
                 <div class="card-header">Statement of Account</div>
                 <div class="card-body">
@@ -737,7 +458,7 @@ $queryBase = http_build_query([
                             </option>
                         <?php endforeach; ?>
                     </select>
-                    
+
                     <small class="text-muted d-block mb-3">
                         Please select a SOA first to enable delivery entry and printing.
                     </small>
@@ -756,6 +477,20 @@ $queryBase = http_build_query([
                             <?= !$soa ? 'style="pointer-events:none;opacity:.6"' : '' ?>>
                             Print SOA
                         </a>
+                    </div>
+                    <hr>
+                    <div class="d-grid gap-2">
+                        <button type="button"
+                            class="btn btn-primary"
+                            id="btn-single-entry">
+                            Single Entry
+                        </button>
+
+                        <button type="button"
+                            class="btn btn-outline-primary"
+                            id="btn-bulk-entry">
+                            Bulk Entry
+                        </button>
                     </div>
 
                 </div>
@@ -1015,4 +750,8 @@ $queryBase = http_build_query([
         termsSelect.removeEventListener('change', toggleCustomTerms);
         termsSelect.addEventListener('change', toggleCustomTerms);
     });
+
+    $(document).on("page:loaded", function () {
+    TransEntryPage.init();
+});
 </script>
