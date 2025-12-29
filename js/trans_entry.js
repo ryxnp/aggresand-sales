@@ -282,6 +282,8 @@ window.TransEntryPage = (() => {
     }
 
     function init() {
+        restoreSOAFromHashOnReload();
+        autoRefreshAfterCRUD();
         initSelects();
         initSOABar();
         initCustomerForm();
@@ -355,4 +357,50 @@ function reloadTransEntry() {
     } else {
         location.reload();
     }
+}
+
+function autoRefreshAfterCRUD() {
+    const hash = window.location.hash;
+    if (!hash.includes('refresh=1')) return;
+
+    const clean = hash.replace('#', '');
+    const [page, query] = clean.split('?');
+
+    const params = new URLSearchParams(query || '');
+    params.delete('refresh');
+
+    // clean URL
+    history.replaceState(
+        null,
+        '',
+        '#' + page + (params.toString() ? '?' + params.toString() : '')
+    );
+
+    // 🔄 force SPA reload
+    if (typeof window.loadPage === 'function') {
+        window.loadPage(page, params.toString());
+    } else {
+        location.reload();
+    }
+}
+
+function restoreSOAFromHashOnReload() {
+    // Prevent infinite loop
+    if (window.__soaRestored) return;
+
+    // Only on hard reload
+    if (performance.navigation.type !== performance.navigation.TYPE_RELOAD) return;
+
+    const hash = window.location.hash;
+    if (!hash || !hash.includes('trans_entry.php')) return;
+
+    const clean = hash.replace('#', '');
+    const [page, query] = clean.split('?');
+    if (!query || !query.includes('soa_id=')) return;
+
+    // mark as restored BEFORE loading
+    window.__soaRestored = true;
+
+    // 🔄 single forced SPA load
+    window.loadPage(page, query);
 }

@@ -282,10 +282,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if ($insertMode === 1) {
                     // stay on page, keep form values
-                    header("Location: /main.php#trans_entry.php?soa_id=" . $soa_id_post);
+                    header("Location: /main.php#trans_entry.php?soa_id={$soa_id_post}&refresh=1");
                 } else {
                     // normal save behavior
-                    header("Location: /main.php#trans_entry.php?soa_id=" . $soa_id_post);
+                    header("Location: /main.php#trans_entry.php?soa_id={$soa_id_post}&refresh=1");
                 }
                 exit;
             }
@@ -328,7 +328,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 audit_log('delivery', $id, 'UPDATE', $oldData, $_POST, $admin);
                 $_SESSION['alert'] = ['type' => 'success', 'message' => 'Delivery updated'];
-                header("Location: /main.php#trans_entry.php?soa_id=" . $soa_id_post);
+                header("Location: /main.php#trans_entry.php?soa_id={$soa_id_post}&refresh=1");
                 exit;
             }
 
@@ -358,7 +358,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 audit_log('delivery', $id, 'DELETE', $oldData, ['is_deleted' => 1], $admin);
 
                 $_SESSION['alert'] = ['type' => 'success', 'message' => 'Delivery deleted'];
-                header("Location: /main.php#trans_entry.php?soa_id=" . $soa_id_post);
+                header("Location: /main.php#trans_entry.php?soa_id={$soa_id_post}&refresh=1");
                 exit;
             }
         }
@@ -592,15 +592,7 @@ $queryBase = http_build_query([
             <?= htmlspecialchars($_SESSION['alert']['message']) ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
-
-        <?php if ($_SESSION['alert']['type'] === 'success'): ?>
-            <script>
-                setTimeout(() => {
-                    reloadTransEntry();
-                }, 300);
-            </script>
-        <?php endif; ?>
-
+        
         <?php unset($_SESSION['alert']); ?>
     <?php } ?>
 

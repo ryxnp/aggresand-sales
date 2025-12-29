@@ -201,12 +201,12 @@ echo "</tbody></table>";
     if ($termsValue === '*'):
     ?>
         <span class="terms-highlight">
-            Cash payment is not accepted. Make all check payables to ALPHASAND AGGREGATES TRADING
+            Cash payment is not accepted. Make all check payables to <strong>ALPHASAND AGGREGATES TRADING</strong>
         </span>
     <?php else: ?>
         <strong><?= htmlspecialchars($termsValue) ?></strong>
         Days upon presentation of SOA.
-        Make all check payables to ALPHASAND AGGREGATES TRADING
+        Make all check payables to <strong>ALPHASAND AGGREGATES TRADING</strong>
     <?php endif; ?>
 </div>
 </div>
