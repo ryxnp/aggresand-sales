@@ -645,3 +645,15 @@ function lockBulkForm() {
     $("#bulk-add-row, .bulk-remove-row").prop("disabled", true);
 }
 
+// Filters + Table 
+$(document).on("submit", ".trans-filter-form", function (e) {
+    e.preventDefault();
+
+    const params = $(this).serialize();
+
+    if (typeof window.loadPage === "function") {
+        window.loadPage("trans_entry.php", params);
+    } else {
+        window.location.href = "trans_entry.php?" + params;
+    }
+});
