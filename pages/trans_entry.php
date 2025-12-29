@@ -427,6 +427,7 @@ $trucks = $conn->query("
     SELECT truck_id, plate_no
     FROM truck
     WHERE is_deleted = 0
+        AND status = 'active'
     ORDER BY plate_no
 ")->fetchAll(PDO::FETCH_ASSOC);
 
