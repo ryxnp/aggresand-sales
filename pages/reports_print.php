@@ -125,27 +125,21 @@ foreach ($rows as $r) {
         </div>
 
         <table class="soa-header-table">
-        <tr>
-            <td>
-                <span class="label">Company Name:</span>
-                <span class="value"><?= htmlspecialchars($soa['company_name']) ?></span>
-            </td>
-            <td class="right">
-                <span class="label">Statement of Account No:</span>
-                <span class="value"><?= htmlspecialchars($soa['soa_no']) ?></span>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <span class="label">Project Site:</span>
-                <span class="value"><?= htmlspecialchars($soa['site_name']) ?></span>
-            </td>
-            <td class="right">
-                <span class="label">PO Number:</span>
-                <span class="value">*</span>
-            </td>
-        </tr>
-    </table>
+    <tr>
+        <td class="label left">Company Name:</td>
+        <td class="value left"><?= htmlspecialchars($soa['company_name']) ?></td>
+
+        <td class="label right">SOA No:</td>
+        <td class="value right"><?= htmlspecialchars($soa['soa_no']) ?></td>
+    </tr>
+    <tr>
+        <td class="label left">Project Site:</td>
+        <td class="value left"><?= htmlspecialchars($soa['site_name']) ?></td>
+
+        <td class="label right">PO Number:</td>
+        <td class="value right">*</td>
+    </tr>
+</table>
 
         <table class="soa-table">
             <thead class="soa-header">

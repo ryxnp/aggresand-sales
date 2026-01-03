@@ -18,7 +18,11 @@ $tables = [
     'audit_log',
 ];
 
+//Developer's backup directory
 $BASE_BACKUP_DIR = 'C:\Users\Public\Documents\aggresand';
+
+//Client's backup directory
+//$BASE_BACKUP_DIR = 'C:\Users\pc\Documents\alphasand_backup';
 
 /* ================= SQL ZIP BACKUP ================= */
 if (isset($_GET['action']) && $_GET['action'] === 'backup_zip') {

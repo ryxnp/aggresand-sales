@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Login - Aggresand</title>
+    <title>Login - Alphasand</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Custom CSS -->
@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <button type="submit" class="btn btn-primary">Login</button>
                             </div>
                         </form>
-                        <p class="text-center mt-3 text-muted">Aggresand System</p>
+                        <p class="text-center mt-3 text-muted">Alphasand System</p>
                     </div>
                 </div>
             </div>

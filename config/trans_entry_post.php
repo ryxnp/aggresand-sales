@@ -35,7 +35,7 @@ try {
             $terms = $terms_select;
         }
 
-        $soa_no = generate_soa_no($conn);
+        $soa_no = generate_soa_no($conn, $company_id);
         $audit  = audit_on_create($admin);
 
         $stmt = $conn->prepare("
