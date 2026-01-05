@@ -7,7 +7,9 @@ require_once __DIR__ . '/../helpers/audit.php';
 $admin       = $_SESSION['admin_id'] ?? null;
 $redirectUrl = '/main.php#company.php';
 
-/* ---------------------- CRUD HANDLING ---------------------- */
+/* =========================================================
+   CRUD HANDLING
+   ========================================================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$admin) {
@@ -26,12 +28,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $status  = $_POST['status'] ?? 'active';
 
     try {
+
         if ($name === '') {
             throw new Exception('Company name is required');
         }
 
+        /* ---------- CREATE ---------- */
         if ($action === 'create') {
-            // CREATE
+
             $audit = audit_on_create($admin);
 
             $stmt = $conn->prepare("
@@ -55,23 +59,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':edited_by'  => $audit['edited_by'],
             ]);
 
-            $newId = (int)$conn->lastInsertId();
-            audit_log('company', $newId, 'CREATE', null, $_POST, $admin);
-
+            audit_log('company', $conn->lastInsertId(), 'CREATE', null, $_POST, $admin);
             $_SESSION['alert'] = ['type' => 'success', 'message' => 'Company created'];
 
+        /* ---------- UPDATE ---------- */
         } elseif ($action === 'update') {
-            // UPDATE
+
             if ($id <= 0) {
                 throw new Exception('Invalid company ID');
             }
 
-            $oldStmt = $conn->prepare("SELECT * FROM company WHERE company_id = :id AND is_deleted = 0");
+            $oldStmt = $conn->prepare("
+                SELECT * FROM company
+                WHERE company_id = :id AND is_deleted = 0
+            ");
             $oldStmt->execute([':id' => $id]);
             $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$oldData) {
-                throw new Exception('Record not found or already deleted');
+                throw new Exception('Record not found');
             }
 
             $audit = audit_on_update($admin);
@@ -100,21 +106,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
 
             audit_log('company', $id, 'UPDATE', $oldData, $_POST, $admin);
-
             $_SESSION['alert'] = ['type' => 'success', 'message' => 'Company updated'];
 
+        /* ---------- DELETE (SOFT) ---------- */
         } elseif ($action === 'delete') {
-            // DELETE (soft)
+
             if ($id <= 0) {
                 throw new Exception('Invalid company ID');
-            }
-
-            $oldStmt = $conn->prepare("SELECT * FROM company WHERE company_id = :id AND is_deleted = 0");
-            $oldStmt->execute([':id' => $id]);
-            $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$oldData) {
-                throw new Exception('Record not found or already deleted');
             }
 
             $audit = audit_on_update($admin);
@@ -133,8 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':edited_by' => $audit['edited_by'],
             ]);
 
-            audit_log('company', $id, 'DELETE', $oldData, ['is_deleted' => 1], $admin);
-
+            audit_log('company', $id, 'DELETE', null, ['is_deleted' => 1], $admin);
             $_SESSION['alert'] = ['type' => 'success', 'message' => 'Company deleted'];
         }
 
@@ -146,59 +143,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-/* ---------------------- DISPLAY DATA (GET) ---------------------- */
+/* =========================================================
+   LIST + FILTERS (RECENT + SEARCH)
+   ========================================================= */
 
 require_once __DIR__ . '/../helpers/alerts.php';
 
 $q            = trim($_GET['q'] ?? '');
 $statusFilter = $_GET['status_filter'] ?? '';
 
-$where  = 'is_deleted = 0';
+$sql = "
+    SELECT *
+    FROM company
+    WHERE is_deleted = 0
+";
+
 $params = [];
 
+/* Status filter */
 if ($statusFilter === 'active' || $statusFilter === 'inactive') {
-    $where .= ' AND status = :status';
+    $sql .= " AND status = :status";
     $params[':status'] = $statusFilter;
 }
 
+/* Search */
 if ($q !== '') {
-    $where .= ' AND (company_name LIKE :q OR address LIKE :q OR contact_no LIKE :q OR email LIKE :q)';
+    $sql .= " AND (
+        company_name LIKE :q
+        OR address LIKE :q
+        OR contact_no LIKE :q
+        OR email LIKE :q
+    )";
     $params[':q'] = '%' . $q . '%';
 }
 
-$per_page     = 10;
-$current_page = isset($_GET['p']) && ctype_digit($_GET['p']) ? (int)$_GET['p'] : 1;
-if ($current_page < 1) $current_page = 1;
+/* Sort by recent activity */
+$sql .= " ORDER BY date_edited DESC, date_created DESC";
 
-$countSql  = "SELECT COUNT(*) FROM company WHERE $where";
-$countStmt = $conn->prepare($countSql);
-$countStmt->execute($params);
-$total_records = (int)$countStmt->fetchColumn();
+/* Limit only when NOT searching */
+if ($q === '') {
+    $sql .= " LIMIT 10";
+}
 
-$total_pages = max(1, (int)ceil($total_records / $per_page));
-if ($current_page > $total_pages) $current_page = $total_pages;
-
-$offset = ($current_page - 1) * $per_page;
-
-$listSql = "
-    SELECT * FROM company
-    WHERE $where
-    ORDER BY date_created DESC
-    LIMIT :limit OFFSET :offset
-";
-$stmt = $conn->prepare($listSql);
+$stmt = $conn->prepare($sql);
 foreach ($params as $k => $v) {
     $stmt->bindValue($k, $v);
 }
-$stmt->bindValue(':limit', $per_page, PDO::PARAM_INT);
-$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-$queryForPagination = http_build_query([
-    'q'             => $q,
-    'status_filter' => $statusFilter,
-]);
 ?>
 
 <div class="container-fluid">
@@ -206,7 +198,7 @@ $queryForPagination = http_build_query([
     <h2 class="mb-4">Companies</h2>
 
     <?php if (!empty($_SESSION['alert'])): ?>
-        <div class="alert alert-<?= htmlspecialchars($_SESSION['alert']['type']) ?> alert-dismissible fade show" role="alert">
+        <div class="alert alert-<?= htmlspecialchars($_SESSION['alert']['type']) ?> alert-dismissible fade show">
             <?= htmlspecialchars($_SESSION['alert']['message']) ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
@@ -220,28 +212,32 @@ $queryForPagination = http_build_query([
             <div class="card">
                 <div class="card-header" id="company-form-title">Add Company</div>
                 <div class="card-body">
-                    <form method="POST" id="company-form" action="pages/company.php">
-                        <input type="hidden" name="company_id" id="company_id" value="">
+                    <form id="company-form" method="POST" action="pages/company.php">
+                        <input type="hidden" name="company_id" id="company_id">
                         <input type="hidden" name="action" id="company_form_action" value="create">
 
                         <div class="mb-3">
                             <label class="form-label">Company Name</label>
-                            <input type="text" name="company_name" id="company_name" class="form-control" required>
+                            <input type="text" name="company_name" id="company_name"
+                                   class="form-control" required>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">Address</label>
-                            <input type="text" name="address" id="address" class="form-control">
+                            <input type="text" name="address" id="address"
+                                   class="form-control">
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">Contact No</label>
-                            <input type="text" name="contact_no" id="contact_no" class="form-control">
+                            <input type="text" name="contact_no" id="contact_no"
+                                   class="form-control">
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">Email</label>
-                            <input type="email" name="email" id="email" class="form-control">
+                            <input type="email" name="email" id="email"
+                                   class="form-control">
                         </div>
 
                         <div class="mb-3">
@@ -252,8 +248,12 @@ $queryForPagination = http_build_query([
                             </select>
                         </div>
 
-                        <button type="submit" class="btn btn-primary" id="company-submit-btn">Save</button>
-                        <button type="button" class="btn btn-secondary d-none" id="company-cancel-edit-btn">Cancel</button>
+                        <button class="btn btn-primary" id="company-submit-btn">Save</button>
+                        <button type="button"
+                                class="btn btn-secondary d-none"
+                                id="company-cancel-edit-btn">
+                            Cancel
+                        </button>
                     </form>
                 </div>
             </div>
@@ -262,31 +262,31 @@ $queryForPagination = http_build_query([
         <!-- TABLE COLUMN -->
         <div class="col-lg-8 mb-4">
             <div class="card">
-                <div class="card-header">
-                    <div class="d-flex flex-wrap gap-2 align-items-center">
-                        <span class="me-auto">Company List</span>
+                <div class="card-header d-flex align-items-center gap-2">
+                    <span class="me-auto">
+                        <?= $q === '' ? 'Recently Added / Edited Companies' : 'Search Results' ?>
+                    </span>
 
-                        <form class="d-flex flex-wrap gap-2 company-filter-form" method="GET" action="">
-                            <input type="text"
-                                   name="q"
-                                   value="<?= htmlspecialchars($q) ?>"
-                                   class="form-control form-control-sm" style="width: 220px;"
-                                   placeholder="Search Company">
-                                   
+                    <form class="d-flex gap-2 company-filter-form">
+                        <input type="text" name="q"
+                               value="<?= htmlspecialchars($q) ?>"
+                               class="form-control form-control-sm"
+                               placeholder="Search Company" style="width:220px;">
 
-                            <select name="status_filter" class="form-select form-select-sm" style="width: 220px;">
-                                <option value="">All Status</option>
-                                <option value="active"   <?= $statusFilter === 'active'   ? 'selected' : '' ?>>Active</option>
-                                <option value="inactive" <?= $statusFilter === 'inactive' ? 'selected' : '' ?>>Inactive</option>
-                            </select>
+                        <select name="status_filter"
+                                class="form-select form-select-sm"
+                                style="width:220px;">
+                            <option value="">All Status</option>
+                            <option value="active"   <?= $statusFilter === 'active' ? 'selected' : '' ?>>Active</option>
+                            <option value="inactive" <?= $statusFilter === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                        </select>
 
-                            <button class="btn btn-sm btn-outline-primary">Apply</button>
-                        </form>
-                    </div>
+                        <button class="btn btn-sm btn-outline-primary">Apply</button>
+                    </form>
                 </div>
 
                 <div class="card-body table-responsive">
-                    <table class="table table-striped table-bordered mb-0" id="company-table">
+                    <table class="table table-striped table-bordered mb-0">
                         <thead class="table-light">
                             <tr>
                                 <th>ID</th>
@@ -295,26 +295,25 @@ $queryForPagination = http_build_query([
                                 <th>Contact</th>
                                 <th>Email</th>
                                 <th>Status</th>
-                                <th>Created</th>
+                                <th>Last Edited</th>
                                 <th width="150">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                         <?php if (!$rows): ?>
                             <tr><td colspan="8" class="text-center">No records found.</td></tr>
-                        <?php else: ?>
-                            <?php foreach ($rows as $r): ?>
+                        <?php else:
+                            foreach ($rows as $r): ?>
                                 <tr>
                                     <td><?= (int)$r['company_id'] ?></td>
-                                    <td class="col-name"><?= htmlspecialchars($r['company_name']) ?></td>
-                                    <td class="col-address"><?= htmlspecialchars($r['address']) ?></td>
-                                    <td class="col-contact"><?= htmlspecialchars($r['contact_no']) ?></td>
-                                    <td class="col-email"><?= htmlspecialchars($r['email']) ?></td>
-                                    <td class="col-status"><?= htmlspecialchars($r['status']) ?></td>
-                                    <td><?= htmlspecialchars($r['date_created']) ?></td>
+                                    <td><?= htmlspecialchars($r['company_name']) ?></td>
+                                    <td><?= htmlspecialchars($r['address']) ?></td>
+                                    <td><?= htmlspecialchars($r['contact_no']) ?></td>
+                                    <td><?= htmlspecialchars($r['email']) ?></td>
+                                    <td><?= htmlspecialchars($r['status']) ?></td>
+                                    <td><?= htmlspecialchars($r['date_edited']) ?></td>
                                     <td class="text-nowrap">
-                                        <button type="button"
-                                                class="btn btn-sm btn-secondary company-btn-edit"
+                                        <button class="btn btn-sm btn-secondary company-btn-edit"
                                                 data-id="<?= (int)$r['company_id'] ?>"
                                                 data-name="<?= htmlspecialchars($r['company_name'], ENT_QUOTES) ?>"
                                                 data-address="<?= htmlspecialchars($r['address'], ENT_QUOTES) ?>"
@@ -324,49 +323,24 @@ $queryForPagination = http_build_query([
                                             Edit
                                         </button>
 
-                                        <form method="POST" class="d-inline"
+                                        <form method="POST"
                                               action="pages/company.php"
+                                              class="d-inline"
                                               onsubmit="return confirm('Delete this company?');">
                                             <input type="hidden" name="action" value="delete">
-                                            <input type="hidden" name="company_id" value="<?= (int)$r['company_id'] ?>">
+                                            <input type="hidden" name="company_id"
+                                                   value="<?= (int)$r['company_id'] ?>">
                                             <button class="btn btn-sm btn-danger">Delete</button>
                                         </form>
                                     </td>
                                 </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
+                        <?php endforeach; endif; ?>
                         </tbody>
                     </table>
                 </div>
-
-                <?php if ($total_pages > 1): ?>
-                    <div class="card-footer">
-                        <nav>
-                            <ul class="pagination mb-0">
-                                <li class="page-item <?= $current_page <= 1 ? 'disabled' : '' ?>">
-                                    <a class="page-link"
-                                       href="?<?= htmlspecialchars($queryForPagination) ?>&p=<?= $current_page - 1 ?>">&laquo;</a>
-                                </li>
-
-                                <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                                    <li class="page-item <?= $i == $current_page ? 'active' : '' ?>">
-                                        <a class="page-link"
-                                           href="?<?= htmlspecialchars($queryForPagination) ?>&p=<?= $i ?>"><?= $i ?></a>
-                                    </li>
-                                <?php endfor; ?>
-
-                                <li class="page-item <?= $current_page >= $total_pages ? 'disabled' : '' ?>">
-                                    <a class="page-link"
-                                       href="?<?= htmlspecialchars($queryForPagination) ?>&p=<?= $current_page + 1 ?>">&raquo;</a>
-                                </li>
-                            </ul>
-                        </nav>
-                    </div>
-                <?php endif; ?>
 
             </div>
         </div>
 
     </div>
-
 </div>

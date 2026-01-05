@@ -7,7 +7,9 @@ require_once __DIR__ . '/../helpers/audit.php';
 $admin       = $_SESSION['admin_id'] ?? null;
 $redirectUrl = '/main.php#site.php';
 
-/* ---------------------- CRUD HANDLING ---------------------- */
+/* =========================================================
+   CRUD HANDLING
+   ========================================================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$admin) {
@@ -25,12 +27,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $status  = $_POST['status'] ?? 'active';
 
     try {
+
         if ($name === '') {
             throw new Exception('Site name is required');
         }
 
+        /* ---------- CREATE ---------- */
         if ($action === 'create') {
-            // CREATE
+
             $audit = audit_on_create($admin);
 
             $stmt = $conn->prepare("
@@ -53,23 +57,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':edited_by'  => $audit['edited_by'],
             ]);
 
-            $newId = (int)$conn->lastInsertId();
-            audit_log('site', $newId, 'CREATE', null, $_POST, $admin);
-
+            audit_log('site', $conn->lastInsertId(), 'CREATE', null, $_POST, $admin);
             $_SESSION['alert'] = ['type' => 'success', 'message' => 'Site created'];
 
+        /* ---------- UPDATE ---------- */
         } elseif ($action === 'update') {
-            // UPDATE
+
             if ($id <= 0) {
                 throw new Exception('Invalid site ID');
             }
 
-            $oldStmt = $conn->prepare("SELECT * FROM site WHERE site_id = :id AND is_deleted = 0");
+            $oldStmt = $conn->prepare("
+                SELECT * FROM site
+                WHERE site_id = :id AND is_deleted = 0
+            ");
             $oldStmt->execute([':id' => $id]);
             $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$oldData) {
-                throw new Exception('Record not found or already deleted');
+                throw new Exception('Record not found');
             }
 
             $audit = audit_on_update($admin);
@@ -96,21 +102,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
 
             audit_log('site', $id, 'UPDATE', $oldData, $_POST, $admin);
-
             $_SESSION['alert'] = ['type' => 'success', 'message' => 'Site updated'];
 
+        /* ---------- DELETE (SOFT) ---------- */
         } elseif ($action === 'delete') {
-            // DELETE (soft)
+
             if ($id <= 0) {
                 throw new Exception('Invalid site ID');
-            }
-
-            $oldStmt = $conn->prepare("SELECT * FROM site WHERE site_id = :id AND is_deleted = 0");
-            $oldStmt->execute([':id' => $id]);
-            $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$oldData) {
-                throw new Exception('Record not found or already deleted');
             }
 
             $audit = audit_on_update($admin);
@@ -129,8 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':edited_by' => $audit['edited_by'],
             ]);
 
-            audit_log('site', $id, 'DELETE', $oldData, ['is_deleted' => 1], $admin);
-
+            audit_log('site', $id, 'DELETE', null, ['is_deleted' => 1], $admin);
             $_SESSION['alert'] = ['type' => 'success', 'message' => 'Site deleted'];
         }
 
@@ -142,68 +139,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-/* ---------------------- DISPLAY DATA (GET) ---------------------- */
+/* =========================================================
+   LIST + FILTERS (RECENT + SEARCH)
+   ========================================================= */
 
 require_once __DIR__ . '/../helpers/alerts.php';
 
 $q            = trim($_GET['q'] ?? '');
 $statusFilter = $_GET['status_filter'] ?? '';
 
-$where  = 'is_deleted = 0';
+$sql = "
+    SELECT *
+    FROM site
+    WHERE is_deleted = 0
+";
+
 $params = [];
 
+/* Status filter */
 if ($statusFilter === 'active' || $statusFilter === 'inactive') {
-    $where .= ' AND status = :status';
+    $sql .= " AND status = :status";
     $params[':status'] = $statusFilter;
 }
 
+/* Search */
 if ($q !== '') {
-    $where .= ' AND (site_name LIKE :q OR remarks LIKE :q OR location LIKE :q)';
+    $sql .= " AND (site_name LIKE :q OR remarks LIKE :q OR location LIKE :q)";
     $params[':q'] = '%' . $q . '%';
 }
 
-$per_page     = 10;
-$current_page = isset($_GET['p']) && ctype_digit($_GET['p']) ? (int)$_GET['p'] : 1;
-if ($current_page < 1) $current_page = 1;
+/* Sort by recent activity */
+$sql .= " ORDER BY date_edited DESC, date_created DESC";
 
-$countSql  = "SELECT COUNT(*) FROM site WHERE $where";
-$countStmt = $conn->prepare($countSql);
-$countStmt->execute($params);
-$total_records = (int)$countStmt->fetchColumn();
+/* Limit only when NOT searching */
+if ($q === '') {
+    $sql .= " LIMIT 10";
+}
 
-$total_pages = max(1, (int)ceil($total_records / $per_page));
-if ($current_page > $total_pages) $current_page = $total_pages;
-
-$offset = ($current_page - 1) * $per_page;
-
-$listSql = "
-    SELECT * FROM site
-    WHERE $where
-    ORDER BY date_created DESC
-    LIMIT :limit OFFSET :offset
-";
-$stmt = $conn->prepare($listSql);
+$stmt = $conn->prepare($sql);
 foreach ($params as $k => $v) {
     $stmt->bindValue($k, $v);
 }
-$stmt->bindValue(':limit', $per_page, PDO::PARAM_INT);
-$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-$queryForPagination = http_build_query([
-    'q'             => $q,
-    'status_filter' => $statusFilter,
-]);
 ?>
 
 <div class="container-fluid">
 
     <h2 class="mb-4">Sites</h2>
 
-    <?php if (isset($_SESSION['alert'])): ?>
-        <div class="alert alert-<?= $_SESSION['alert']['type'] ?> alert-dismissible fade show">
-            <?= $_SESSION['alert']['message'] ?>
+    <?php if (!empty($_SESSION['alert'])): ?>
+        <div class="alert alert-<?= htmlspecialchars($_SESSION['alert']['type']) ?> alert-dismissible fade show">
+            <?= htmlspecialchars($_SESSION['alert']['message']) ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
         <?php unset($_SESSION['alert']); ?>
@@ -253,16 +240,22 @@ $queryForPagination = http_build_query([
         <!-- TABLE COLUMN -->
         <div class="col-lg-8 mb-4">
             <div class="card">
-
                 <div class="card-header d-flex align-items-center gap-2">
-                    <span class="me-auto">Site List</span>
+                    <span class="me-auto">
+                        <?= $q === '' ? 'Recently Added / Edited Sites' : 'Search Results' ?>
+                    </span>
 
-                    <form class="d-flex gap-2 site-filter-form" method="GET" action="">
-                        <input type="text" name="q" value="<?= htmlspecialchars($q) ?>" class="form-control form-control-sm" placeholder="Search Site" style="width: 220px;">
-                        
-                        <select name="status_filter" class="form-select form-select-sm" style="width: 220px;">
+                    <form class="d-flex gap-2 site-filter-form">
+                        <input type="text" name="q"
+                               value="<?= htmlspecialchars($q) ?>"
+                               class="form-control form-control-sm"
+                               placeholder="Search Site" style="width:220px;">
+
+                        <select name="status_filter"
+                                class="form-select form-select-sm"
+                                style="width:220px;">
                             <option value="">All Status</option>
-                            <option value="active" <?= $statusFilter === 'active' ? 'selected' : '' ?>>Active</option>
+                            <option value="active"   <?= $statusFilter === 'active' ? 'selected' : '' ?>>Active</option>
                             <option value="inactive" <?= $statusFilter === 'inactive' ? 'selected' : '' ?>>Inactive</option>
                         </select>
 
@@ -279,73 +272,49 @@ $queryForPagination = http_build_query([
                                 <th>Remarks</th>
                                 <th>Location</th>
                                 <th>Status</th>
-                                <th>Created</th>
+                                <th>Last Edited</th>
                                 <th width="150">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php if (!$rows): ?>
-                                <tr><td colspan="7" class="text-center">No records found</td></tr>
-                            <?php else: ?>
-                                <?php foreach ($rows as $r): ?>
-                                    <tr>
-                                        <td><?= $r['site_id'] ?></td>
-                                        <td class="col-name"><?= htmlspecialchars($r['site_name']) ?></td>
-                                        <td class="col-remarks"><?= htmlspecialchars($r['remarks']) ?></td>
-                                        <td class="col-location"><?= htmlspecialchars($r['location']) ?></td>
-                                        <td class="col-status"><?= htmlspecialchars($r['status']) ?></td>
-                                        <td><?= htmlspecialchars($r['date_created']) ?></td>
-                                        <td class="text-nowrap">
-                                            <button 
-                                                class="btn btn-sm btn-secondary site-btn-edit"
-                                                data-id="<?= $r['site_id'] ?>"
+                        <?php if (!$rows): ?>
+                            <tr><td colspan="7" class="text-center">No records found</td></tr>
+                        <?php else:
+                            foreach ($rows as $r): ?>
+                                <tr>
+                                    <td><?= (int)$r['site_id'] ?></td>
+                                    <td><?= htmlspecialchars($r['site_name']) ?></td>
+                                    <td><?= htmlspecialchars($r['remarks']) ?></td>
+                                    <td><?= htmlspecialchars($r['location']) ?></td>
+                                    <td><?= htmlspecialchars($r['status']) ?></td>
+                                    <td><?= htmlspecialchars($r['date_edited']) ?></td>
+                                    <td class="text-nowrap">
+                                        <button class="btn btn-sm btn-secondary site-btn-edit"
+                                                data-id="<?= (int)$r['site_id'] ?>"
                                                 data-name="<?= htmlspecialchars($r['site_name'], ENT_QUOTES) ?>"
                                                 data-remarks="<?= htmlspecialchars($r['remarks'], ENT_QUOTES) ?>"
                                                 data-location="<?= htmlspecialchars($r['location'], ENT_QUOTES) ?>"
-                                                data-status="<?= htmlspecialchars($r['status'], ENT_QUOTES) ?>"
-                                            >Edit</button>
+                                                data-status="<?= htmlspecialchars($r['status'], ENT_QUOTES) ?>">
+                                            Edit
+                                        </button>
 
-                                            <form method="POST" action="pages/site.php" class="d-inline"
-                                                onsubmit="return confirm('Delete this site?');">
-                                                <input type="hidden" name="action" value="delete">
-                                                <input type="hidden" name="site_id" value="<?= $r['site_id'] ?>">
-                                                <button class="btn btn-sm btn-danger">Delete</button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
+                                        <form method="POST"
+                                              action="pages/site.php"
+                                              class="d-inline"
+                                              onsubmit="return confirm('Delete this site?');">
+                                            <input type="hidden" name="action" value="delete">
+                                            <input type="hidden" name="site_id" value="<?= (int)$r['site_id'] ?>">
+                                            <button class="btn btn-sm btn-danger">Delete</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                        <?php endforeach; endif; ?>
                         </tbody>
                     </table>
                 </div>
-
-                <?php if ($total_pages > 1): ?>
-                    <div class="card-footer">
-                        <nav>
-                            <ul class="pagination mb-0">
-
-                                <li class="page-item <?= $current_page <= 1 ? 'disabled' : '' ?>">
-                                    <a class="page-link" href="?<?= $queryBase ?>&p=<?= $current_page - 1 ?>">&laquo;</a>
-                                </li>
-
-                                <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                                    <li class="page-item <?= $i == $current_page ? 'active' : '' ?>">
-                                        <a class="page-link" href="?<?= $queryBase ?>&p=<?= $i ?>"><?= $i ?></a>
-                                    </li>
-                                <?php endfor; ?>
-
-                                <li class="page-item <?= $current_page >= $total_pages ? 'disabled' : '' ?>">
-                                    <a class="page-link" href="?<?= $queryBase ?>&p=<?= $current_page + 1 ?>">&raquo;</a>
-                                </li>
-
-                            </ul>
-                        </nav>
-                    </div>
-                <?php endif; ?>
 
             </div>
         </div>
 
     </div>
-
 </div>
