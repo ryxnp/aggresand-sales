@@ -7,7 +7,9 @@ require_once __DIR__ . '/../helpers/audit.php';
 $admin       = $_SESSION['admin_id'] ?? null;
 $redirectUrl = '/main.php#materials.php';
 
-/* ---------------------- CRUD HANDLING ---------------------- */
+/* =========================================================
+   CRUD HANDLING
+   ========================================================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$admin) {
@@ -24,12 +26,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $status = $_POST['status'] ?? 'active';
 
     try {
+
         if ($name === '') {
             throw new Exception('Material name is required');
         }
 
+        /* ---------- CREATE ---------- */
         if ($action === 'create') {
-            // CREATE
+
             $audit = audit_on_create($admin);
 
             $stmt = $conn->prepare("
@@ -51,23 +55,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':edited_by'  => $audit['edited_by'],
             ]);
 
-            $newId = (int)$conn->lastInsertId();
-            audit_log('materials', $newId, 'CREATE', null, $_POST, $admin);
-
+            audit_log('materials', $conn->lastInsertId(), 'CREATE', null, $_POST, $admin);
             $_SESSION['alert'] = ['type' => 'success', 'message' => 'Material created'];
 
+        /* ---------- UPDATE ---------- */
         } elseif ($action === 'update') {
-            // UPDATE
+
             if ($id <= 0) {
                 throw new Exception('Invalid material ID');
             }
 
-            $oldStmt = $conn->prepare("SELECT * FROM materials WHERE material_id = :id AND is_deleted = 0");
+            $oldStmt = $conn->prepare("
+                SELECT * FROM materials
+                WHERE material_id = :id AND is_deleted = 0
+            ");
             $oldStmt->execute([':id' => $id]);
             $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$oldData) {
-                throw new Exception('Record not found or already deleted');
+                throw new Exception('Record not found');
             }
 
             $audit = audit_on_update($admin);
@@ -92,21 +98,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
 
             audit_log('materials', $id, 'UPDATE', $oldData, $_POST, $admin);
-
             $_SESSION['alert'] = ['type' => 'success', 'message' => 'Material updated'];
 
+        /* ---------- DELETE (SOFT) ---------- */
         } elseif ($action === 'delete') {
-            // SOFT DELETE
+
             if ($id <= 0) {
                 throw new Exception('Invalid material ID');
-            }
-
-            $oldStmt = $conn->prepare("SELECT * FROM materials WHERE material_id = :id AND is_deleted = 0");
-            $oldStmt->execute([':id' => $id]);
-            $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$oldData) {
-                throw new Exception('Record not found or already deleted');
             }
 
             $audit = audit_on_update($admin);
@@ -125,8 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':edited_by' => $audit['edited_by'],
             ]);
 
-            audit_log('materials', $id, 'DELETE', $oldData, ['is_deleted' => 1], $admin);
-
+            audit_log('materials', $id, 'DELETE', null, ['is_deleted' => 1], $admin);
             $_SESSION['alert'] = ['type' => 'success', 'message' => 'Material deleted'];
         }
 
@@ -138,73 +135,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-/* ---------------------- LIST + FILTERS ---------------------- */
+/* =========================================================
+   LIST + FILTERS
+   ========================================================= */
 
 require_once __DIR__ . '/../helpers/alerts.php';
 
 $q            = trim($_GET['q'] ?? '');
 $statusFilter = $_GET['status_filter'] ?? '';
 
-$where  = "is_deleted = 0";
+$sql = "
+    SELECT material_id, material_name, unit_price,
+           status, date_created, date_edited
+    FROM materials
+    WHERE is_deleted = 0
+";
+
 $params = [];
 
-// status filter
+/* Status filter */
 if ($statusFilter === 'active' || $statusFilter === 'inactive') {
-    $where .= " AND status = :status";
+    $sql .= " AND status = :status";
     $params[':status'] = $statusFilter;
 }
 
-// search text on name or price
+/* Search */
 if ($q !== '') {
-    $where .= " AND (material_name LIKE :q OR unit_price LIKE :q)";
+    $sql .= " AND material_name LIKE :q";
     $params[':q'] = '%' . $q . '%';
 }
 
-// pagination
-$per_page     = 10;
-$current_page = isset($_GET['p']) && ctype_digit($_GET['p']) ? (int)$_GET['p'] : 1;
-if ($current_page < 1) $current_page = 1;
+/* Sorting */
+$sql .= " ORDER BY date_edited DESC, date_created DESC";
 
-// count
-$countSql = "SELECT COUNT(*) FROM materials WHERE $where";
-$countStmt = $conn->prepare($countSql);
-$countStmt->execute($params);
-$total_records = (int)$countStmt->fetchColumn();
-
-$total_pages = max(1, (int)ceil($total_records / $per_page));
-if ($current_page > $total_pages) $current_page = $total_pages;
-
-$offset = ($current_page - 1) * $per_page;
-
-// list
-$listSql = "
-    SELECT material_id, material_name, unit_price, status, date_created
-    FROM materials
-    WHERE $where
-    ORDER BY material_name ASC
-    LIMIT :limit OFFSET :offset
-";
-
-$listStmt = $conn->prepare($listSql);
-foreach ($params as $k => $v) {
-    $listStmt->bindValue($k, $v);
+/* LIMIT only when NOT searching */
+if ($q === '') {
+    $sql .= " LIMIT 10";
 }
-$listStmt->bindValue(':limit', $per_page, PDO::PARAM_INT);
-$listStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-$listStmt->execute();
-$rows = $listStmt->fetchAll(PDO::FETCH_ASSOC);
 
-$queryForPagination = http_build_query([
-    'q'             => $q,
-    'status_filter' => $statusFilter,
-]);
+$stmt = $conn->prepare($sql);
+foreach ($params as $k => $v) {
+    $stmt->bindValue($k, $v);
+}
+$stmt->execute();
+$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <div class="container-fluid">
     <h2 class="mb-4">Materials</h2>
 
     <?php if (!empty($_SESSION['alert'])) { ?>
-        <div class="alert alert-<?= htmlspecialchars($_SESSION['alert']['type']) ?> alert-dismissible fade show" role="alert">
+        <div class="alert alert-<?= htmlspecialchars($_SESSION['alert']['type']) ?> alert-dismissible fade show">
             <?= htmlspecialchars($_SESSION['alert']['message']) ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
@@ -212,10 +193,13 @@ $queryForPagination = http_build_query([
     <?php } ?>
 
     <div class="row">
-        <!-- FORM COLUMN -->
+
+        <!-- FORM -->
         <div class="col-lg-4 mb-4">
             <div class="card">
-                <div class="card-header" id="materials-form-title">Add Material</div>
+                <div class="card-header" id="materials-form-title">
+                    Add Material
+                </div>
                 <div class="card-body">
                     <form id="materials-form" method="POST" action="pages/materials.php">
                         <input type="hidden" name="material_id" id="material_id">
@@ -223,13 +207,9 @@ $queryForPagination = http_build_query([
 
                         <div class="mb-3">
                             <label class="form-label">Material Name</label>
-                            <input type="text" name="material_name" id="material_name" class="form-control" required>
+                            <input type="text" name="material_name" id="material_name"
+                                   class="form-control" required>
                         </div>
-
-                        <!-- <div class="mb-3">
-                            <label class="form-label">Unit Price</label>
-                            <input type="number" step="0.01" name="unit_price" id="unit_price" class="form-control" required>
-                        </div> -->
 
                         <div class="mb-3">
                             <label class="form-label">Status</label>
@@ -239,62 +219,73 @@ $queryForPagination = http_build_query([
                             </select>
                         </div>
 
-                        <button type="submit" class="btn btn-primary" id="materials-submit-btn">Save</button>
-                        <button type="button" class="btn btn-secondary d-none" id="materials-cancel-edit-btn">Cancel</button>
+                        <button class="btn btn-primary" id="materials-submit-btn">Save</button>
+                        <button type="button"
+                                class="btn btn-secondary d-none"
+                                id="materials-cancel-edit-btn">
+                            Cancel
+                        </button>
                     </form>
                 </div>
             </div>
         </div>
 
-        <!-- TABLE COLUMN -->
+        <!-- TABLE -->
         <div class="col-lg-8 mb-4">
             <div class="card">
                 <div class="card-header">
                     <div class="d-flex flex-wrap gap-2 align-items-center">
-                        <span class="me-auto">Material List</span>
+                        <span class="me-auto">
+                            <?= $q === '' ? 'Recently Added / Edited Materials' : 'Search Results' ?>
+                        </span>
 
-                        <form class="d-flex flex-wrap gap-2 materials-filter-form" method="GET" action="">
+                        <form class="d-flex gap-2 materials-filter-form">
                             <input type="text"
                                    name="q"
                                    value="<?= htmlspecialchars($q) ?>"
                                    class="form-control form-control-sm"
-                                   style="width: 220px;"
-                                   placeholder="Search Material">
+                                   placeholder="Search material">
 
-                            <select name="status_filter" class="form-select form-select-sm" style="width: 220px;">
-                                <option value="">All Status</option>
-                                <option value="active"   <?= $statusFilter === 'active'   ? 'selected' : '' ?>>Active</option>
+                            <select name="status_filter"
+                                    class="form-select form-select-sm">
+                                <option value="">All</option>
+                                <option value="active"   <?= $statusFilter === 'active' ? 'selected' : '' ?>>Active</option>
                                 <option value="inactive" <?= $statusFilter === 'inactive' ? 'selected' : '' ?>>Inactive</option>
                             </select>
 
-                            <button class="btn btn-sm btn-outline-primary">Apply</button>
+                            <button class="btn btn-sm btn-outline-primary">
+                                Apply
+                            </button>
                         </form>
                     </div>
                 </div>
 
                 <div class="card-body table-responsive">
-                    <table class="table table-striped table-bordered mb-0" id="materials-table">
+                    <table class="table table-striped table-bordered mb-0"
+                           id="materials-table">
                         <thead class="table-light">
                             <tr>
                                 <th>ID</th>
                                 <th>Name</th>
-                                <!-- <th>Unit Price</th> -->
                                 <th>Status</th>
-                                <th>Created</th>
+                                <th>Last Edited</th>
                                 <th width="150">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                         <?php if (!$rows) { ?>
-                            <tr><td colspan="6" class="text-center">No records found.</td></tr>
-                        <?php } else { ?>
-                            <?php foreach ($rows as $r) { ?>
+                            <tr>
+                                <td colspan="5" class="text-center">
+                                    No records found.
+                                </td>
+                            </tr>
+                        <?php } else {
+                            foreach ($rows as $r) { ?>
                                 <tr>
                                     <td><?= (int)$r['material_id'] ?></td>
-                                    <td class="col-name"><?= htmlspecialchars($r['material_name']) ?></td>
-                                    <!-- <td class="col-price"><?= number_format((float)$r['unit_price'], 2) ?></td> -->
-                                    <td class="col-status"><?= htmlspecialchars($r['status']) ?></td>
-                                    <td><?= htmlspecialchars($r['date_created']) ?></td>
+                                    <td><?= htmlspecialchars($r['material_name']) ?></td>
+                                    <td><?= htmlspecialchars($r['status']) ?></td>
+                                    <td><?= htmlspecialchars($r['date_edited']) ?></td>
                                     <td class="text-nowrap">
                                         <button type="button"
                                                 class="btn btn-sm btn-secondary materials-btn-edit"
@@ -305,45 +296,25 @@ $queryForPagination = http_build_query([
                                             Edit
                                         </button>
 
-                                        <form method="POST" class="d-inline"
+                                        <form method="POST"
+                                              class="d-inline"
                                               action="pages/materials.php"
                                               onsubmit="return confirm('Delete this material?');">
                                             <input type="hidden" name="action" value="delete">
-                                            <input type="hidden" name="material_id" value="<?= (int)$r['material_id'] ?>">
-                                            <button class="btn btn-sm btn-danger">Delete</button>
+                                            <input type="hidden" name="material_id"
+                                                   value="<?= (int)$r['material_id'] ?>">
+                                            <button class="btn btn-sm btn-danger">
+                                                Delete
+                                            </button>
                                         </form>
                                     </td>
                                 </tr>
-                            <?php } ?>
-                        <?php } ?>
+                            <?php }
+                        } ?>
                         </tbody>
                     </table>
                 </div>
 
-                <?php if ($total_pages > 1) { ?>
-                    <div class="card-footer">
-                        <nav>
-                            <ul class="pagination mb-0">
-                                <li class="page-item <?= $current_page <= 1 ? 'disabled' : '' ?>">
-                                    <a class="page-link"
-                                       href="?<?= htmlspecialchars($queryForPagination) ?>&p=<?= $current_page - 1 ?>">&laquo;</a>
-                                </li>
-
-                                <?php for ($i = 1; $i <= $total_pages; $i++) { ?>
-                                    <li class="page-item <?= $i == $current_page ? 'active' : '' ?>">
-                                        <a class="page-link"
-                                           href="?<?= htmlspecialchars($queryForPagination) ?>&p=<?= $i ?>"><?= $i ?></a>
-                                    </li>
-                                <?php } ?>
-
-                                <li class="page-item <?= $current_page >= $total_pages ? 'disabled' : '' ?>">
-                                    <a class="page-link"
-                                       href="?<?= htmlspecialchars($queryForPagination) ?>&p=<?= $current_page + 1 ?>">&raquo;</a>
-                                </li>
-                            </ul>
-                        </nav>
-                    </div>
-                <?php } ?>
             </div>
         </div>
     </div>
