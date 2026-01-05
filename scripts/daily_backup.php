@@ -35,8 +35,10 @@ $tables = [
     'delivery',
     'materials',
     'site',
+    'truck',
     'statement_of_account',
     'audit_log',
+    'backup_log',
 ];
 
 $ts = date('Y-m-d_His');

@@ -14,8 +14,10 @@ $tables = [
     'delivery',
     'materials',
     'site',
+    'truck',
     'statement_of_account',
     'audit_log',
+    'backup_log',
 ];
 
 //Developer's backup directory
