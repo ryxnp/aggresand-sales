@@ -2,17 +2,6 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 
-
-$termsValue = trim((string)($soa['terms'] ?? ''));
-
-if ($termsValue === '*') {
-    $termsText = 'Cash payment is not accepted. ' .
-                 'Make all check payables to ALPHASAND AGGREGATES TRADING';
-} else {
-    $termsText = $termsValue . ' Days upon presentation of SOA. ' .
-                 'Make all check payables to ALPHASAND AGGREGATES TRADING';
-}
-
 /* =========================
    VALIDATION
 ========================= */
@@ -35,7 +24,7 @@ $soaStmt = $conn->prepare("
     FROM statement_of_account s
     JOIN company c ON s.company_id = c.company_id
     JOIN site si ON s.site_id = si.site_id
-      AND s.is_deleted = 0
+    WHERE s.is_deleted = 0
       AND s.billing_date = :billing_date
     ORDER BY s.soa_no ASC
 ");
@@ -49,6 +38,9 @@ function printSOA(PDO $conn, array $soa, bool $pageBreak)
 {
     $rowsPerPage = 24;
 
+    /* =========================
+       FETCH DRs
+    ========================= */
     $stmt = $conn->prepare("
         SELECT
             d.delivery_date,
@@ -66,11 +58,10 @@ function printSOA(PDO $conn, array $soa, bool $pageBreak)
     $stmt->execute([':soa_id' => $soa['soa_id']]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $rowCount = count($rows);
-    $pageClass = $rowCount > 20 ? 'page dense-table' : 'page';
     $totalRows  = count($rows);
-    $totalPages = max(1, ceil($totalRows / $rowsPerPage));
+    $totalPages = max(1, ceil(max($totalRows, 1) / $rowsPerPage));
 
+    /* totals */
     $totalQty = 0;
     $totalAmt = 0;
     foreach ($rows as $r) {
@@ -78,30 +69,36 @@ function printSOA(PDO $conn, array $soa, bool $pageBreak)
         $totalAmt += (float)$r['quantity'] * (float)$r['unit_price'];
     }
 
-    if ($pageBreak) echo '<div class="page-break"></div>';
+    /* force one iteration if NO DR */
+    if ($totalRows === 0) {
+        $rows = [null];
+    }
+
+    if ($pageBreak) {
+        echo '<div class="page-break"></div>';
+    }
 
     $rowIndex  = 0;
     $pageIndex = 0;
 
     foreach ($rows as $r) {
 
+        /* =========================
+           NEW PAGE
+        ========================= */
         if ($rowIndex % $rowsPerPage === 0) {
+
             $pageIndex++;
 
             if ($rowIndex > 0) {
-                echo "</tbody></table>";
-
-                if ($pageIndex > $totalPages) {
-                    // safety
-                }
-
-                echo "</div><div class='page page-break'>";
+                echo "</tbody></table></div>";
+                echo "<div class='page page-break'>";
             } else {
                 echo "<div class='page'>";
             }
-
-            /* ===== HEADER ===== */
             ?>
+
+            <!-- HEADER -->
             <img src="../assets/headerv2.png" class="header-image">
 
             <div class="page-meta">
@@ -114,27 +111,21 @@ function printSOA(PDO $conn, array $soa, bool $pageBreak)
             </div>
 
             <table class="soa-header-table">
-        <tr>
-            <td>
-                <span class="label">Company Name:</span>
-                <span class="value"><?= htmlspecialchars($soa['company_name']) ?></span>
-            </td>
-            <td class="right">
-                <span class="label">Statement of Account No:</span>
-                <span class="value"><?= htmlspecialchars($soa['soa_no']) ?></span>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <span class="label">Project Site:</span>
-                <span class="value"><?= htmlspecialchars($soa['site_name']) ?></span>
-            </td>
-            <td class="right">
-                <span class="label">PO Number:</span>
-                <span class="value">*</span>
-            </td>
-        </tr>
-    </table>
+                <tr>
+                    <td class="label left">Company Name:</td>
+                    <td class="value left"><?= htmlspecialchars($soa['company_name']) ?></td>
+
+                    <td class="label right">SOA No:</td>
+                    <td class="value right"><?= htmlspecialchars($soa['soa_no']) ?></td>
+                </tr>
+                <tr>
+                    <td class="label left">Project Site:</td>
+                    <td class="value left"><?= htmlspecialchars($soa['site_name']) ?></td>
+
+                    <td class="label right">PO Number:</td>
+                    <td class="value right">*</td>
+                </tr>
+            </table>
 
             <table class="soa-table">
                 <thead class="soa-header">
@@ -149,30 +140,47 @@ function printSOA(PDO $conn, array $soa, bool $pageBreak)
                     </tr>
                 </thead>
                 <tbody>
+
             <?php
         }
 
-        $amount = (float)$r['quantity'] * (float)$r['unit_price'];
-        ?>
+        /* =========================
+           ROW / NO DR ROW
+        ========================= */
+        if ($totalRows === 0) {
+            ?>
+            <tr>
+                <td colspan="7" style="text-align:center;padding:14px;font-style:italic;">
+                    No deliveries recorded for this SOA
+                </td>
+            </tr>
+            <?php
+        } else {
+            $amount = (float)$r['quantity'] * (float)$r['unit_price'];
+            ?>
+            <tr>
+                <td><?= htmlspecialchars($r['delivery_date']) ?></td>
+                <td><?= htmlspecialchars($r['dr_no']) ?></td>
+                <td><?= htmlspecialchars($r['plate_no']) ?></td>
+                <td><?= htmlspecialchars($r['material']) ?></td>
+                <td class="text-end"><?= number_format($r['quantity'], 2) ?></td>
+                <td class="text-end"><?= number_format($r['unit_price'], 2) ?></td>
+                <td class="text-end"><?= number_format($amount, 2) ?></td>
+            </tr>
+            <?php
+        }
 
-        <tr>
-            <td><?= htmlspecialchars($r['delivery_date']) ?></td>
-            <td><?= htmlspecialchars($r['dr_no']) ?></td>
-            <td><?= htmlspecialchars($r['plate_no']) ?></td>
-            <td><?= htmlspecialchars($r['material']) ?></td>
-            <td class="text-end"><?= number_format($r['quantity'], 2) ?></td>
-            <td class="text-end"><?= number_format($r['unit_price'], 2) ?></td>
-            <td class="text-end"><?= number_format($amount, 2) ?></td>
-        </tr>
-
-        <?php
         $rowIndex++;
     }
 
-    /* ===== CLOSE LAST PAGE ===== */
+    /* =========================
+       CLOSE LAST PAGE
+    ========================= */
     echo "</tbody></table>";
 
-    /* ===== TOTALS + TERMS ===== */
+    /* =========================
+       TOTALS + TERMS
+    ========================= */
     ?>
     <div class="totals-section">
         <div><strong>Total Quantity:</strong> <?= number_format($totalQty, 2) ?></div>
@@ -180,25 +188,19 @@ function printSOA(PDO $conn, array $soa, bool $pageBreak)
         <div><strong>Total DR Count:</strong> <?= $totalRows ?></div>
 
         <div class="terms-block">
-    <strong>Terms of Payment:</strong><br>
-
-    <?php
-    $termsValue = trim((string)($soa['terms'] ?? ''));
-
-    if ($termsValue === '*'):
-    ?>
-        <span class="terms-highlight">
-            Cash payment is not accepted. Make all check payables to <strong>ALPHASAND AGGREGATES TRADING</strong>
-        </span>
-    <?php else: ?>
-        <strong><?= htmlspecialchars($termsValue) ?></strong>
-        Days upon presentation of SOA.
-        Make all check payables to <strong>ALPHASAND AGGREGATES TRADING</strong>
-    <?php endif; ?>
-</div>
+            <strong>Terms of Payment:</strong><br>
+            <?php if (($soa['terms'] ?? '') === '*'): ?>
+                Cash payment is not accepted.
+                Make all check payables to <strong>ALPHASAND AGGREGATES TRADING</strong>
+            <?php else: ?>
+                <strong><?= htmlspecialchars($soa['terms']) ?></strong>
+                Days upon presentation of SOA.
+                Make all check payables to <strong>ALPHASAND AGGREGATES TRADING</strong>
+            <?php endif; ?>
+        </div>
     </div>
 
-    <!-- ===== FOOTER (FINAL PAGE ONLY) ===== -->
+    <!-- FOOTER -->
     <div class="footer">
         <table class="footer-table">
             <tr>
@@ -229,7 +231,6 @@ function printSOA(PDO $conn, array $soa, bool $pageBreak)
     <?php
 }
 ?>
-
 <!DOCTYPE html>
 <html>
 <head>

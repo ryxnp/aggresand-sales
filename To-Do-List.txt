@@ -15,3 +15,6 @@ Add arguments
 
 Start in
 > C:\Users\{user}\Desktop\aggresand-sales\scripts
+
+ALTER TABLE statement_of_account
+ADD UNIQUE KEY uq_company_soa (company_id, soa_no);

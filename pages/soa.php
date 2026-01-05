@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Company, Site and Terms are required');
             }
 
-            $soa_no = generate_soa_no($conn);
+            $soa_no = generate_soa_no($conn, $company_id);
             $audit  = audit_on_create($admin);
 
             $stmt = $conn->prepare("

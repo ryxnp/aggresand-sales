@@ -1,202 +1,203 @@
-        @page {
-            size: A4 portrait;
-            margin: 10mm;
-        }
+@page {
+  size: A4 portrait;
+  margin: 4mm;
+}
 
-        body {
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            margin: 0;
-        }
+body {
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  margin: 0;
+}
 
-        .page {
-            width: 190mm;
-            min-height: 277mm;
-            margin: 0 auto;
-            padding: 5mm 5mm 10mm 5mm;
-            box-sizing: border-box;
-            position: relative;
-        }
+.page {
+  width: 202mm;
+  min-height: 277mm;
+  margin: 0 auto;
+  padding: 2.5mm 3mm 6m 3mm;
+  box-sizing: border-box;
+  position: relative;
+}
 
-        .page-break {
-            page-break-before: always;
-        }
+.page-break {
+  page-break-before: always;
+}
 
-        .header-image {
-            width: 100%;
-        }
+.header-image {
+  width: 100%;
+}
 
-        table.soa-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 8px;
-        }
+table.soa-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  text-align: center;
+}
 
-        table.soa-table th,
-        table.soa-table td {
-            border: 1px solid #000;
-            padding: 4px;
-            font-size: 13px;
-        }
+table.soa-table th,
+table.soa-table td {
+  border: 1px solid #000;
+  padding: 4px;
+  font-size: 13px;
+}
 
-        table.soa-table th {
-            background: #f0f0f0;
-            text-align: center;
-        }
+table.soa-table th {
+  background: #f0f0f0;
+  text-align: center;
+}
 
-        .footer {
-            position: absolute;
-            bottom: 10mm;
-            left: 0;
-            width: 100%;
-        }
+.footer {
+  position: absolute;
+  bottom: 10mm;
+  left: 0;
+  width: 100%;
+}
 
-        .soa-header-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-            font-size: 15px;
-        }
+.soa-header-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: 8px;
+  font-size: 14px;
+}
 
-        .soa-header-table td {
-            width: 50%;
-            padding: 4px 6px;
-            vertical-align: top;
-        }
-        
-        /* alignment */
-        .soa-header-table td.right {
-            text-align: left;
-        }
+.soa-header-table td {
+  padding: 4px 6px;
+  vertical-align: top;
+  line-height: 1.5;
+}
 
-        /* label/value spacing */
-        .soa-header-table .label {
-            display: inline-block;
-            min-width: 170px; /* controls spacing */
-            font-weight: bold;
-        }
+/* LEFT SIDE */
+.soa-header-table td.label.left {
+  width: 15%;
+  font-weight: bold;
+  white-space: nowrap;
+}
 
-        .soa-header-table td.right .label {
-            min-width: auto;
-            margin-right: 6px;
-        }
+.soa-header-table td.value.left {
+  width: 40%;
+  white-space: normal;
+}
 
-        .soa-header-table .value {
-            display: inline-block;
-        }
+/* RIGHT SIDE (pushed to the edge) */
+.soa-header-table td.label.right {
+  width: 10%;
+  font-weight: bold;
+  text-align: left;
+  white-space: nowrap;
+}
 
-        .soa-header-table td span,
-        .soa-header-table td {
-            line-height: 1.5;
-        }
+.soa-header-table td.value.right {
+  width: 15%;
+  white-space: nowrap;
+}
 
-        .print-date {
-            position: absolute;
-            right: 10mm;
-            font-size: 13px;
-            font-weight: 500;
-        }
+.print-date {
+  position: absolute;
+  right: 10mm;
+  font-size: 13px;
+  font-weight: 500;
+}
 
-        .soa-header th {
-            color: #b00000;
-            font-weight: 700;
-            font-size: 11.5px;
-            text-transform: uppercase;
-        }
+.soa-header th {
+  color: #b00000;
+  font-weight: 700;
+  font-size: 11.5px;
+  text-transform: uppercase;
+}
 
-        .totals-section {
-            width: 100%;
-            margin-top: 16px;
-            /* space from table */
-            padding-top: 10px;
-            /* internal spacing */
-            font-size: 13px;
-            line-height: 1.6;
-            /* breathing room between rows */
-        }
+.totals-section {
+  width: 100%;
+  margin-top: 16px;
+  /* space from table */
+  padding-top: 10px;
+  /* internal spacing */
+  font-size: 13px;
+  line-height: 1.6;
+  /* breathing room between rows */
+}
 
-        .totals-section td {
-            padding: 4px 6px;
-        }
+.totals-section td {
+  padding: 4px 6px;
+}
 
-        .totals-section .label {
-            font-weight: bold;
-        }
+.totals-section .label {
+  font-weight: bold;
+}
 
-        .totals-section .value {
-            text-align: right;
-            font-weight: bold;
-        }
+.totals-section .value {
+  text-align: right;
+  font-weight: bold;
+}
 
-        .terms-block {
-            margin-top: 14px;
-            /* separation from DR count */
-            padding-top: 8px;
-            border-top: 1px solid #000;
-            /* visual separator */
-            font-size: 12.5px;
-        }
+.terms-block {
+  margin-top: 14px;
+  /* separation from DR count */
+  padding-top: 8px;
+  border-top: 1px solid #000;
+  /* visual separator */
+  font-size: 12.5px;
+}
 
-        .footer {
-            position: absolute;
-            bottom: 12mm;
-            left: 0;
-            width: 100%;
-        }
+.footer {
+  position: absolute;
+  bottom: 12mm;
+  left: 0;
+  width: 100%;
+}
 
-        .footer-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-            /* IMPORTANT */
-            font-size: 13px;
-        }
+.footer-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  /* IMPORTANT */
+  font-size: 13px;
+}
 
-        .footer-table td {
-            width: 25%;
-            text-align: center;
-            vertical-align: top;
-            padding: 6px 8px;
-        }
+.footer-table td {
+  width: 25%;
+  text-align: center;
+  vertical-align: top;
+  padding: 6px 8px;
+}
 
-        .sig-name {
-            font-weight: bold;
-            font-size: 13px;
-        }
+.sig-name {
+  font-weight: bold;
+  font-size: 13px;
+}
 
-        .sig-role {
-            font-size: 11px;
-            line-height: 1.3;
-        }
+.sig-role {
+  font-size: 11px;
+  line-height: 1.3;
+}
 
-        .page-number {
-            text-align: right;
-            font-size: 11px;
-            margin: 4px 0 6px 0;
-        }
+.page-number {
+  text-align: right;
+  font-size: 11px;
+  margin: 4px 0 6px 0;
+}
 
-        /* ==============================
+/* ==============================
         TOP-RIGHT META (Billing Date + Page No)
         ============================== */
 
-        .page {
-            position: relative; /* REQUIRED for absolute positioning */
-        }
+.page {
+  position: relative; /* REQUIRED for absolute positioning */
+}
 
-        .page-meta {
-            position: absolute;
-            top: 1mm;
-            right: 10mm;
-            text-align: right;
-            font-size: 13px;
-            line-height: 1.4;
-        }
+.page-meta {
+  position: absolute;
+  top: 1mm;
+  right: 10mm;
+  text-align: right;
+  font-size: 13px;
+  line-height: 1.4;
+}
 
-        .page-meta .billing-date {
-            font-style: italic;
-        }
+.page-meta .billing-date {
+  font-style: italic;
+}
 
-        .page-meta .page-number {
-            font-size: 10px;
-            color: #555;
-        }
+.page-meta .page-number {
+  font-size: 10px;
+  color: #555;
+}
