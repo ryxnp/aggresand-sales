@@ -19,7 +19,11 @@ try {
 
         $company_id = (int)($_POST['company_id'] ?? 0);
         $site_id    = (int)($_POST['site_id'] ?? 0);
+        $billing_date = $_POST['billing_date'] ?? '';
 
+        if (!$billing_date || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $billing_date)) {
+            throw new Exception('Invalid billing date');
+        }
         if ($company_id <= 0 || $site_id <= 0) {
             throw new Exception('Company and Site are required');
         }
@@ -52,7 +56,7 @@ try {
             ':soa_no'       => $soa_no,
             ':company_id'   => $company_id,
             ':site_id'      => $site_id,
-            ':billing_date' => date('Y-m-d'),
+            ':billing_date' => $billing_date,
             ':terms'        => $terms,
             ':dc'           => $audit['date_created'],
             ':de'           => $audit['date_edited'],

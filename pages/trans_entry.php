@@ -685,6 +685,15 @@ $queryBase = http_build_query([
                     </div>
 
                     <div class="mb-3">
+                        <label class="form-label">Billing Date</label>
+                        <input type="date"
+                            name="billing_date"
+                            class="form-control"
+                            required
+                            value="<?= date('Y-m-d') ?>">
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">Terms of Payment</label>
 
                         <select name="terms_select" id="terms_select" class="form-select " required>

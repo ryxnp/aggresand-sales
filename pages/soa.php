@@ -31,6 +31,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $site_id    = (int)($_POST['site_id'] ?? 0);
             $terms      = (int)($_POST['terms'] ?? 0);
 
+            $billing_date = $_POST['billing_date'] ?? '';
+            if (!$billing_date || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $billing_date)) {
+                throw new Exception('Invalid billing date');
+            }
+
             if ($company_id <= 0 || $site_id <= 0 || $terms <= 0) {
                 throw new Exception('Company, Site and Terms are required');
             }
@@ -40,10 +45,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $stmt = $conn->prepare("
                 INSERT INTO statement_of_account
-                (soa_no, company_id, site_id, terms, status, is_deleted,
+                (soa_no, company_id, site_id, billing_date, terms, status, is_deleted,
                  date_created, date_edited, created_by, edited_by)
                 VALUES
-                (:soa_no, :company, :site, :terms, 'draft', 0,
+                (:soa_no, :company, :site, :billing_date, :terms, 'draft', 0,
                  :dc, :de, :cb, :eb)
             ");
 
@@ -51,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':soa_no' => $soa_no,
                 ':company'=> $company_id,
                 ':site'   => $site_id,
+                ':billing_date' => $billing_date,
                 ':terms'  => $terms,
                 ':dc'     => $audit['date_created'],
                 ':de'     => $audit['date_edited'],
@@ -161,6 +167,15 @@ $soas = $conn->query("
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label>Billing Date</label>
+                        <input type="date"
+                            name="billing_date"
+                            class="form-control"
+                            required
+                            value="<?= date('Y-m-d') ?>">
                     </div>
 
                     <div class="col-md-4">
