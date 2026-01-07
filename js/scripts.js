@@ -9,6 +9,7 @@ $(function () {
         'reports.php',
         'contractor.php',
         'site.php',
+        'soa.php',
         'materials.php',
         'truck.php',
         'company.php',
@@ -110,7 +111,7 @@ $(function () {
         if (page === 'soa.php' &&
             window.SoaPage &&
             typeof window.SoaPage.init === 'function') {
-        window.SoaPage.init();
+            window.SoaPage.init();
         }
 
         // (Later you can add MaterialsPage, AccountsPage, etc.)
