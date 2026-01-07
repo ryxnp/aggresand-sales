@@ -52,6 +52,7 @@ if (!isset($_SESSION['admin_id'])) {
   <script src="js/company.js"></script>
   <script src="js/contractor.js"></script>
   <script src="js/site.js"></script>
+  <script src="js/soa.js"></script>
   <script src="js/truck.js"></script>
   <script src="js/trans_entry.js"></script>
   <script src="js/materials.js"></script>

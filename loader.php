@@ -33,6 +33,7 @@ $allowedPages = [
     'reports.php',
     'contractor.php',
     'site.php',
+    'soa.php',
     'materials.php',
     'truck.php',
     'company.php',
