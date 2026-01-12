@@ -36,7 +36,7 @@ $soas = $soaStmt->fetchAll(PDO::FETCH_ASSOC);
 ========================= */
 function printSOA(PDO $conn, array $soa, bool $pageBreak)
 {
-    $rowsPerPage = 24;
+    $rowsPerPage = 20;
 
     /* =========================
        FETCH DRs

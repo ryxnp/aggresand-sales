@@ -54,7 +54,7 @@ if ($action === 'update') {
         throw new Exception('SOA not found');
     }
 
-    // 🚫 Prevent company change if deliveries exist
+    // Prevent company change if deliveries exist
     $cnt = $conn->prepare("
         SELECT COUNT(*) FROM delivery WHERE soa_id = :id
     ");
@@ -176,6 +176,7 @@ if ($action === 'update') {
 require_once __DIR__ . '/../helpers/alerts.php';
 
 $q = trim($_GET['q'] ?? '');
+$deliveryFilter = $_GET['delivery_filter'] ?? '';
 
 /* ---------- LOAD SITES ---------- */
 $siteStmt = $conn->query("
@@ -225,6 +226,13 @@ if ($q !== '') {
 
 $sql .= "
     GROUP BY s.soa_id
+";
+
+if ($deliveryFilter === 'zero') {
+    $sql .= " HAVING COUNT(d.del_id) = 0";
+}
+
+$sql .= "
     ORDER BY s.date_edited DESC, s.date_created DESC
     LIMIT 15
 ";
@@ -314,6 +322,14 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                class="form-control form-control-sm"
                                placeholder="Search SOA / Company / Site"
                                style="width:260px;">
+                               <select name="delivery_filter"
+                                    class="form-select form-select-sm"
+                                    style="width:200px;">
+                                <option value="">All SOAs</option>
+                                <option value="zero" <?= ($_GET['delivery_filter'] ?? '') === 'zero' ? 'selected' : '' ?>>
+                                    No Deliveries
+                                </option>
+                            </select>
                         <button class="btn btn-sm btn-outline-primary">Apply</button>
                     </form>
                 </div>

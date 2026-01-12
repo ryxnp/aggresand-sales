@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
 
-        if ($plate === '') {
+        if (in_array($action, ['create', 'update'], true) && $plate === '') {
             throw new Exception('Plate number is required');
         }
 
@@ -213,7 +213,7 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
                         <div class="mb-3">
                             <label class="form-label">Capacity</label>
-                            <input type="text" id="capacity" name="capacity" class="form-control">
+                            <input type="text" id="capacity" name="capacity" class="form-control" required>
                         </div>
 
                         <div class="mb-3">

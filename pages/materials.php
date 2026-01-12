@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
 
-        if ($name === '') {
+        if (in_array($action, ['create', 'update'], true) && $name === '') {
             throw new Exception('Material name is required');
         }
 
