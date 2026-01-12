@@ -85,72 +85,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['alert'] = ['type' => 'success', 'message' => 'SOA updated successfully'];
         }
 
-        /* ================= DELETE (SOFT + CASCADE) ================= */
-        elseif ($action === 'delete') {
+        /* ================= DELETE (SOFT + CASCADE + RENAME DR) ================= */
+elseif ($action === 'delete') {
 
-            if ($soa_id <= 0) {
-                throw new Exception('Invalid SOA ID');
-            }
+    if ($soa_id <= 0) {
+        throw new Exception('Invalid SOA ID');
+    }
 
-            $conn->beginTransaction();
+    $conn->beginTransaction();
 
-            $oldStmt = $conn->prepare("
-                SELECT * FROM statement_of_account
-                WHERE soa_id = :id AND is_deleted = 0
-            ");
-            $oldStmt->execute([':id' => $soa_id]);
-            $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
+    // Fetch SOA
+    $oldStmt = $conn->prepare("
+        SELECT * FROM statement_of_account
+        WHERE soa_id = :id AND is_deleted = 0
+    ");
+    $oldStmt->execute([':id' => $soa_id]);
+    $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
 
-            if (!$oldData) {
-                throw new Exception('SOA not found or already deleted');
-            }
+    if (!$oldData) {
+        throw new Exception('SOA not found or already deleted');
+    }
 
-            $audit = audit_on_update($admin);
+    $audit = audit_on_update($admin);
 
-            /* Soft delete SOA */
-            $stmt = $conn->prepare("
-                UPDATE statement_of_account SET
-                    is_deleted  = 1,
-                    date_edited = :edited,
-                    edited_by   = :edited_by
-                WHERE soa_id = :id
-            ");
-            $stmt->execute([
-                ':edited'    => $audit['date_edited'],
-                ':edited_by' => $audit['edited_by'],
-                ':id'        => $soa_id
-            ]);
+    /* 1️⃣ Soft delete SOA */
+    $stmt = $conn->prepare("
+        UPDATE statement_of_account SET
+            is_deleted  = 1,
+            date_edited = :edited,
+            edited_by   = :edited_by
+        WHERE soa_id = :id
+    ");
+    $stmt->execute([
+        ':edited'    => $audit['date_edited'],
+        ':edited_by' => $audit['edited_by'],
+        ':id'        => $soa_id
+    ]);
 
-            /* Soft delete ALL deliveries under this SOA */
-            $stmt = $conn->prepare("
-                UPDATE delivery SET
-                    is_deleted  = 1,
-                    date_edited = :edited,
-                    edited_by   = :edited_by
-                WHERE soa_id = :id
-            ");
-            $stmt->execute([
-                ':edited'    => $audit['date_edited'],
-                ':edited_by' => $audit['edited_by'],
-                ':id'        => $soa_id
-            ]);
+    /* 2️⃣ Rename DR numbers + soft delete deliveries */
+    $stmt = $conn->prepare("
+        UPDATE delivery SET
+            dr_no        = CONCAT(dr_no, '_DELETED'),
+            is_deleted   = 1,
+            date_edited  = :edited,
+            edited_by    = :edited_by
+        WHERE soa_id = :id
+          AND is_deleted = 0
+    ");
+    $stmt->execute([
+        ':edited'    => $audit['date_edited'],
+        ':edited_by' => $audit['edited_by'],
+        ':id'        => $soa_id
+    ]);
 
-            audit_log(
-                'statement_of_account',
-                $soa_id,
-                'DELETE',
-                $oldData,
-                ['is_deleted' => 1],
-                $admin
-            );
+    audit_log(
+        'statement_of_account',
+        $soa_id,
+        'DELETE',
+        $oldData,
+        ['is_deleted' => 1],
+        $admin
+    );
 
-            $conn->commit();
+    $conn->commit();
 
-            $_SESSION['alert'] = [
-                'type' => 'success',
-                'message' => 'SOA and all related deliveries were deleted'
-            ];
-        }
+    $_SESSION['alert'] = [
+        'type' => 'success',
+        'message' => 'SOA and all related deliveries were deleted'
+    ];
+}
+
 
         else {
             throw new Exception('Invalid action');

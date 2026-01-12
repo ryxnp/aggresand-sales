@@ -102,44 +102,61 @@ try {
         $company_id = (int)$soaRow['company_id'];
 
         /* =====================================================
-        DELETE (HARD DELETE)
-        ===================================================== */
-        if ($action === 'delete') {
+   DELETE (SOFT DELETE + RENAME DR)
+   ===================================================== */
+if ($action === 'delete') {
 
-            if ($id <= 0) {
-                throw new Exception('Invalid delivery ID');
-            }
-            
-            // Fetch old data for audit trail
-            $oldStmt = $conn->prepare("
-                SELECT * FROM delivery WHERE del_id = :id
-            ");
-            $oldStmt->execute([':id' => $id]);
-            $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
+    if ($id <= 0) {
+        throw new Exception('Invalid delivery ID');
+    }
 
-            if (!$oldData) {
-                throw new Exception('Delivery not found');
-            }
+    // Fetch existing delivery (must NOT be deleted yet)
+    $oldStmt = $conn->prepare("
+        SELECT * FROM delivery
+        WHERE del_id = :id AND is_deleted = 0
+    ");
+    $oldStmt->execute([':id' => $id]);
+    $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
 
-            // 🔥 HARD DELETE
-            $stmt = $conn->prepare("
-                DELETE FROM delivery
-                WHERE del_id = :id
-                LIMIT 1
-            ");
-            $stmt->execute([':id' => $id]);
+    if (!$oldData) {
+        throw new Exception('Delivery not found or already deleted');
+    }
 
-            // Audit log still works
-            audit_log('delivery', $id, 'DELETE', $oldData, null, $admin);
+    $audit = audit_on_update($admin);
 
-            $_SESSION['alert'] = [
-                'type' => 'success',
-                'message' => 'Delivery permanently deleted'
-            ];
+    // ✅ Soft delete + rename DR
+    $stmt = $conn->prepare("
+        UPDATE delivery SET
+            dr_no        = CONCAT(dr_no, '_DELETED'),
+            is_deleted   = 1,
+            date_edited  = :edited,
+            edited_by    = :edited_by
+        WHERE del_id = :id
+    ");
+    $stmt->execute([
+        ':edited'    => $audit['date_edited'],
+        ':edited_by' => $audit['edited_by'],
+        ':id'        => $id
+    ]);
 
-            header("Location: /main.php#trans_entry.php?soa_id={$soa_id_post}");
-            exit;
-        }
+    audit_log(
+        'delivery',
+        $id,
+        'DELETE',
+        $oldData,
+        ['is_deleted' => 1, 'dr_no' => $oldData['dr_no'] . '_DELETED'],
+        $admin
+    );
+
+    $_SESSION['alert'] = [
+        'type' => 'success',
+        'message' => 'Delivery deleted'
+    ];
+
+    header("Location: /main.php#trans_entry.php?soa_id={$soa_id_post}");
+    exit;
+}
+
 
 
 

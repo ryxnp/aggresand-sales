@@ -12,10 +12,10 @@ require_once __DIR__ . '/../config/db.php';
 /* ---------------- CONFIG ---------------- */
 
 //Developer's backup directory
-$BASE_DIR = 'C:\Users\Public\Documents\aggresand';
+// $BASE_DIR = 'C:\Users\Public\Documents\aggresand';
     
 //Client's backup directory
-//$BASE_DIR = 'C:\Users\pc\Documents\alphasand_backup';
+$BASE_DIR = 'C:\Users\pc\Documents\alphasand_backup';
 
 $DIRS = [
     'excel' => "$BASE_DIR/excel",

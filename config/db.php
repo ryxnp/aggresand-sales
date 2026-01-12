@@ -1,16 +1,16 @@
 <?php
 
 // Developer's Database configuration
-$host = "localhost";
-$username = "root";
-$password = "9320718a";
-$database = "aggresand_db";
-
-//Client's Database configuration
 // $host = "localhost";
 // $username = "root";
-// $password = "AdminPasword123!";
+// $password = "9320718a";
 // $database = "aggresand_db";
+
+//Client's Database configuration
+$host = "localhost";
+$username = "root";
+$password = "AdminPasword123!";
+$database = "aggresand_db";
 
 try {
     $conn = new PDO("mysql:host=$host;dbname=$database;charset=utf8", $username, $password);
