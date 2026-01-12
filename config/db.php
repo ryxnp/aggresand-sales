@@ -9,7 +9,7 @@
 //Client's Database configuration
 $host = "localhost";
 $username = "root";
-$password = "AdminPasword123!";
+$password = "AlphaSandPasword123!";
 $database = "aggresand_db";
 
 try {
