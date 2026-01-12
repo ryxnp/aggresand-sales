@@ -73,6 +73,7 @@ $companies = $conn->query("
     SELECT company_id, company_name
     FROM company
     WHERE is_deleted = 0
+        AND status = 'active'
     ORDER BY company_name
 ")->fetchAll(PDO::FETCH_ASSOC);
 
