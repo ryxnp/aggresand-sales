@@ -102,32 +102,45 @@ try {
         $company_id = (int)$soaRow['company_id'];
 
         /* =====================================================
-        DELETE
+        DELETE (HARD DELETE)
         ===================================================== */
         if ($action === 'delete') {
 
             if ($id <= 0) {
                 throw new Exception('Invalid delivery ID');
             }
+            
+            // Fetch old data for audit trail
+            $oldStmt = $conn->prepare("
+                SELECT * FROM delivery WHERE del_id = :id
+            ");
+            $oldStmt->execute([':id' => $id]);
+            $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
 
+            if (!$oldData) {
+                throw new Exception('Delivery not found');
+            }
+
+            // 🔥 HARD DELETE
             $stmt = $conn->prepare("
-                UPDATE delivery
-                SET is_deleted = 1
+                DELETE FROM delivery
                 WHERE del_id = :id
                 LIMIT 1
             ");
             $stmt->execute([':id' => $id]);
 
-            audit_log('delivery', $id, 'DELETE', null, $_POST, $admin);
+            // Audit log still works
+            audit_log('delivery', $id, 'DELETE', $oldData, null, $admin);
 
             $_SESSION['alert'] = [
                 'type' => 'success',
-                'message' => 'Delivery deleted'
+                'message' => 'Delivery permanently deleted'
             ];
 
             header("Location: /main.php#trans_entry.php?soa_id={$soa_id_post}");
             exit;
         }
+
 
 
         /* =====================================================
@@ -274,7 +287,6 @@ try {
         $conn->commit();
 
     } catch (Exception $e) {
-        // ❌ ROLLBACK on ANY failure
         $conn->rollBack();
         throw $e;
     }
