@@ -2,7 +2,6 @@
 session_start();
 require_once __DIR__ . '/db.php';
 
-// Security check
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../index.php");
     exit;

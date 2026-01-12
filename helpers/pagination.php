@@ -1,5 +1,4 @@
 <?php
-// helpers/pagination.php
 if (session_status() === PHP_SESSION_NONE) session_start();
 
 if (!isset($total_records)) $total_records = 0;
@@ -16,7 +15,6 @@ $pagination = [
     'total_records' => $total_records
 ];
 
-// Render bootstrap pagination
 if ($total_pages > 1):
 ?>
 <nav aria-label="Page navigation">
@@ -26,7 +24,6 @@ if ($total_pages > 1):
         </li>
 
         <?php
-        // show if many pages: simple strategy to limit visible pages
         $start = max(1, $page - 3);
         $end = min($total_pages, $page + 3);
         if ($start > 1): ?>

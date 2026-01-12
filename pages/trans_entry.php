@@ -150,12 +150,10 @@ $truckFilter = isset($_GET['truck_filter']) ? (int)$_GET['truck_filter'] : 0;
 $where  = "d.is_deleted = 0";
 $params = [];
 
-// STRICT: deliveries only show when SOA is selected
 if ($soa_id > 0) {
     $where .= " AND d.soa_id = :soa_id";
     $params[':soa_id'] = $soa_id;
 } else {
-    // explicitly block listing
     $where .= " AND 0 = 1";
 }
 
@@ -164,7 +162,6 @@ if ($statusFilter !== '') {
     $where .= " AND d.status = :status";
     $params[':status'] = $statusFilter;
 }
-
 
 // material filter
 if ($materialFilter !== '') {
@@ -761,7 +758,7 @@ $queryBase = http_build_query([
         termsSelect.addEventListener('change', toggleCustomTerms);
     });
 
-    $(document).on("page:loaded", function () {
-    TransEntryPage.init();
-});
+    $(document).on("page:loaded", function() {
+        TransEntryPage.init();
+    });
 </script>

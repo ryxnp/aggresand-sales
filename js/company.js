@@ -21,7 +21,6 @@ window.CompanyPage = (() => {
             actionFld.val("create");
             idFld.val("");
 
-            // always post back to this SPA page
             form.attr("action", "pages/company.php");
 
             nameInput.val("");

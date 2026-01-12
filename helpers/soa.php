@@ -2,7 +2,6 @@
 
 function generate_soa_no(PDO $conn, int $company_id): string
 {
-    // Get company name
     $stmt = $conn->prepare("
         SELECT company_name
         FROM company

@@ -1,5 +1,3 @@
-// js/backup.js
-
 window.BackupPage = (() => {
 
     function init() {

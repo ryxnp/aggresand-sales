@@ -1,7 +1,5 @@
 <?php
-// helpers/audit.php
-// Inserts an audit row in audit_log table
-require_once __DIR__ . '/../config/db.php'; // uses $conn
+require_once __DIR__ . '/../config/db.php';
 
 function audit_log($table_name, $record_id, $action, $old_data, $new_data, $performed_by)
 {

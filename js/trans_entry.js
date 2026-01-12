@@ -52,7 +52,6 @@ window.TransEntryPage = (() => {
 
         resetForm();
 
-        // (If later you add customer edit buttons, hook them here)
         cancelBtn.on("click", resetForm);
     }
 
@@ -220,7 +219,7 @@ function initSOABar() {
     // Create SOA button
     $btnCreate.prop('disabled', !!soaId);
 
-    // ✅ PRINT: enabled whenever SOA exists
+    // PRINT: enabled whenever SOA exists
     if (soaId) {
         $btnPrint
             .attr('href', 'pages/reports_print.php?soa_id=' + soaId)
@@ -285,7 +284,6 @@ $(document).on("click", ".pagination a.page-link", function (e) {
     if (typeof window.loadPage === "function") {
         window.loadPage("trans_entry.php", query);
     } else {
-        // fallback: normal navigation
         window.location.href = href;
     }
 });

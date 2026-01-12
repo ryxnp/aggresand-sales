@@ -12,7 +12,7 @@ $email = trim($_POST['email']);
 $role = trim($_POST['role']);
 $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
 $status = 'Active';
-$created_by = 1; // Update later with session admin ID
+$created_by = 1;
 
 try {
   $stmt = $conn->prepare("INSERT INTO admin (username, email, role, password, status, date_created, created_by)
@@ -25,7 +25,7 @@ try {
     ':status' => $status,
     ':created_by' => $created_by
   ]);
-  echo json_encode(['success' => true, 'message' => '✅ Admin account successfully created!']);
+  echo json_encode(['success' => true, 'message' => 'Admin account successfully created!']);
 } catch (PDOException $e) {
   echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
 }

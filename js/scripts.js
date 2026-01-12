@@ -113,15 +113,12 @@ $(function () {
             typeof window.SoaPage.init === 'function') {
             window.SoaPage.init();
         }
-
-        // (Later you can add MaterialsPage, AccountsPage, etc.)
     }
 
-    // Decide which page to load on initial load, based on URL hash
     function getInitialPage() {
-        const hash = window.location.hash;   // e.g. "#company.php"
+        const hash = window.location.hash;
         if (hash && hash.startsWith('#')) {
-            const page = hash.substring(1);  // "company.php"
+            const page = hash.substring(1);
             if (ALLOWED_PAGES.includes(page)) {
                 return page;
             }
@@ -134,7 +131,6 @@ $(function () {
     $(document).on('click', '.sidebar-link[data-page]', function (e) {
         const page = $(this).data('page');
 
-        // Logout goes to normal URL
         if (page === 'logout.php') {
             window.location.href = 'logout.php';
             return;

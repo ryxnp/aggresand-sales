@@ -3,6 +3,7 @@ session_start();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../helpers/audit_fields.php';
 require_once __DIR__ . '/../helpers/audit.php';
+require_once __DIR__ . '/../helpers/soa.php';
 
 $admin       = $_SESSION['admin_id'] ?? null;
 $redirectUrl = '/main.php#soa.php';
@@ -22,79 +23,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $soa_id       = (int)($_POST['soa_id'] ?? 0);
     $billing_date = $_POST['billing_date'] ?? '';
     $site_id      = (int)($_POST['site_id'] ?? 0);
+    $company_id   = (int)($_POST['company_id'] ?? 0);
 
     try {
 
-        /* ================= UPDATE ================= */
-        if ($action === 'update') {
-
-            if ($soa_id <= 0) {
-                throw new Exception('Invalid SOA ID');
-            }
-
-            if ($site_id <= 0) {
-                throw new Exception('Invalid site');
-            }
-
-            if (!$billing_date || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $billing_date)) {
-                throw new Exception('Invalid billing date');
-            }
-
-            $oldStmt = $conn->prepare("
-                SELECT * FROM statement_of_account
-                WHERE soa_id = :id AND is_deleted = 0
-            ");
-            $oldStmt->execute([':id' => $soa_id]);
-            $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$oldData) {
-                throw new Exception('SOA not found');
-            }
-
-            $audit = audit_on_update($admin);
-
-            $stmt = $conn->prepare("
-                UPDATE statement_of_account SET
-                    billing_date = :billing_date,
-                    site_id      = :site_id,
-                    date_edited  = :edited,
-                    edited_by    = :edited_by
-                WHERE soa_id = :id
-            ");
-
-            $stmt->execute([
-                ':billing_date' => $billing_date,
-                ':site_id'      => $site_id,
-                ':edited'       => $audit['date_edited'],
-                ':edited_by'    => $audit['edited_by'],
-                ':id'           => $soa_id
-            ]);
-
-            audit_log(
-                'statement_of_account',
-                $soa_id,
-                'UPDATE',
-                $oldData,
-                [
-                    'billing_date' => $billing_date,
-                    'site_id'      => $site_id
-                ],
-                $admin
-            );
-
-            $_SESSION['alert'] = ['type' => 'success', 'message' => 'SOA updated successfully'];
-        }
-
-        /* ================= DELETE (SOFT + CASCADE + RENAME DR) ================= */
-elseif ($action === 'delete') {
+        /* ================= UPDATE (COMPANY + SOA NO REGEN) ================= */
+if ($action === 'update') {
 
     if ($soa_id <= 0) {
         throw new Exception('Invalid SOA ID');
     }
 
-    $conn->beginTransaction();
+    if ($company_id <= 0 || $site_id <= 0) {
+        throw new Exception('Invalid company or site');
+    }
 
-    // Fetch SOA
+    if (!$billing_date || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $billing_date)) {
+        throw new Exception('Invalid billing date');
+    }
+
+    // Load existing SOA
     $oldStmt = $conn->prepare("
         SELECT * FROM statement_of_account
         WHERE soa_id = :id AND is_deleted = 0
@@ -103,72 +51,120 @@ elseif ($action === 'delete') {
     $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$oldData) {
-        throw new Exception('SOA not found or already deleted');
+        throw new Exception('SOA not found');
+    }
+
+    // 🚫 Prevent company change if deliveries exist
+    $cnt = $conn->prepare("
+        SELECT COUNT(*) FROM delivery WHERE soa_id = :id
+    ");
+    $cnt->execute([':id' => $soa_id]);
+    if ($cnt->fetchColumn() > 0 && (int)$oldData['company_id'] !== $company_id) {
+        throw new Exception('Cannot change company for SOA with deliveries');
+    }
+
+    // Default: keep existing SOA number
+    $newSoaNo = $oldData['soa_no'];
+
+    // 🔁 Company changed → generate NEW SOA number
+    if ((int)$oldData['company_id'] !== $company_id) {
+        $newSoaNo = generate_soa_no($conn, $company_id);
     }
 
     $audit = audit_on_update($admin);
 
-    /* 1️⃣ Soft delete SOA */
     $stmt = $conn->prepare("
         UPDATE statement_of_account SET
-            is_deleted  = 1,
-            date_edited = :edited,
-            edited_by   = :edited_by
-        WHERE soa_id = :id
-    ");
-    $stmt->execute([
-        ':edited'    => $audit['date_edited'],
-        ':edited_by' => $audit['edited_by'],
-        ':id'        => $soa_id
-    ]);
-
-    /* 2️⃣ Rename DR numbers + soft delete deliveries */
-    $stmt = $conn->prepare("
-        UPDATE delivery SET
-            dr_no        = CONCAT(dr_no, '_DELETED'),
-            is_deleted   = 1,
+            soa_no       = :soa_no,
+            company_id   = :company_id,
+            site_id      = :site_id,
+            billing_date = :billing_date,
             date_edited  = :edited,
             edited_by    = :edited_by
         WHERE soa_id = :id
-          AND is_deleted = 0
     ");
+
     $stmt->execute([
-        ':edited'    => $audit['date_edited'],
-        ':edited_by' => $audit['edited_by'],
-        ':id'        => $soa_id
+        ':soa_no'       => $newSoaNo,
+        ':company_id'   => $company_id,
+        ':site_id'      => $site_id,
+        ':billing_date' => $billing_date,
+        ':edited'       => $audit['date_edited'],
+        ':edited_by'    => $audit['edited_by'],
+        ':id'           => $soa_id
     ]);
 
     audit_log(
         'statement_of_account',
         $soa_id,
-        'DELETE',
+        'UPDATE',
         $oldData,
-        ['is_deleted' => 1],
+        [
+            'company_id' => $company_id,
+            'soa_no'     => $newSoaNo
+        ],
         $admin
     );
 
-    $conn->commit();
-
-    $_SESSION['alert'] = [
-        'type' => 'success',
-        'message' => 'SOA and all related deliveries were deleted'
-    ];
+    $_SESSION['alert'] = ['type' => 'success', 'message' => 'SOA updated successfully'];
 }
 
 
+        /* ================= DELETE (HARD DELETE IF NO DRs) ================= */
+        elseif ($action === 'delete') {
+            if ($soa_id <= 0) {
+                throw new Exception('Invalid SOA ID');
+            }
+            $conn->beginTransaction();
+            $soaStmt = $conn->prepare("
+                SELECT * FROM statement_of_account
+                WHERE soa_id = :id
+            ");
+            $soaStmt->execute([':id' => $soa_id]);
+            $soa = $soaStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$soa) {
+                throw new Exception('SOA not found');
+            }
+            $cntStmt = $conn->prepare("
+                SELECT COUNT(*) FROM delivery
+                WHERE soa_id = :id
+            ");
+            $cntStmt->execute([':id' => $soa_id]);
+            $deliveryCount = (int)$cntStmt->fetchColumn();
+
+            if ($deliveryCount > 0) {
+                throw new Exception('Cannot delete SOA with existing deliveries');
+            }
+            audit_log(
+                'statement_of_account',
+                $soa_id,
+                'DELETE',
+                $soa,
+                null,
+                $admin
+            );
+            $delStmt = $conn->prepare("
+                DELETE FROM statement_of_account
+                WHERE soa_id = :id
+                LIMIT 1
+            ");
+            $delStmt->execute([':id' => $soa_id]);
+            $conn->commit();
+            $_SESSION['alert'] = [
+                'type' => 'success',
+                'message' => 'SOA permanently deleted'
+            ];
+        }
         else {
             throw new Exception('Invalid action');
         }
-
     } catch (Exception $e) {
-
         if ($conn->inTransaction()) {
             $conn->rollBack();
         }
-
         $_SESSION['alert'] = ['type' => 'danger', 'message' => $e->getMessage()];
     }
-
     header("Location: $redirectUrl");
     exit;
 }
@@ -189,6 +185,16 @@ $siteStmt = $conn->query("
     ORDER BY site_name
 ");
 $sites = $siteStmt->fetchAll(PDO::FETCH_ASSOC);
+
+/* ---------- LOAD COMPANIES ---------- */
+$companyStmt = $conn->query("
+    SELECT company_id, company_name
+    FROM company
+    WHERE is_deleted = 0
+      AND status = 'active'
+    ORDER BY company_name
+");
+$companies = $companyStmt->fetchAll(PDO::FETCH_ASSOC);
 
 /* ---------- LOAD SOAs ---------- */
 $sql = "
@@ -261,7 +267,14 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
                         <div class="mb-3">
                             <label class="form-label">Company</label>
-                            <input type="text" id="company_name" class="form-control" readonly>
+                            <select name="company_id" id="company_id" class="form-select" required>
+                                <option value="">-- Select Company --</option>
+                                <?php foreach ($companies as $co): ?>
+                                    <option value="<?= (int)$co['company_id'] ?>">
+                                        <?= htmlspecialchars($co['company_name']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
 
                         <div class="mb-3">

@@ -1,7 +1,4 @@
 <?php
-// config/trans_entry_post.php
-// Handles ALL POST requests for trans_entry.php
-
 if (!$admin) {
     $_SESSION['alert'] = ['type' => 'danger', 'message' => 'Not authenticated'];
     header("Location: $redirectUrl");
@@ -85,7 +82,6 @@ try {
             throw new Exception('Please select an SOA first');
         }
 
-        // Validate SOA
         $soaStmt = $conn->prepare("
             SELECT soa_id, company_id
             FROM statement_of_account
@@ -102,63 +98,63 @@ try {
         $company_id = (int)$soaRow['company_id'];
 
         /* =====================================================
-   DELETE (SOFT DELETE + RENAME DR)
+   DELETE (SOFT DELETE + RENAME DR + NULL SOA)
    ===================================================== */
-if ($action === 'delete') {
+        if ($action === 'delete') {
 
-    if ($id <= 0) {
-        throw new Exception('Invalid delivery ID');
-    }
+            if ($id <= 0) {
+                throw new Exception('Invalid delivery ID');
+            }
 
-    // Fetch existing delivery (must NOT be deleted yet)
-    $oldStmt = $conn->prepare("
+            $oldStmt = $conn->prepare("
         SELECT * FROM delivery
         WHERE del_id = :id AND is_deleted = 0
     ");
-    $oldStmt->execute([':id' => $id]);
-    $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
+            $oldStmt->execute([':id' => $id]);
+            $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$oldData) {
-        throw new Exception('Delivery not found or already deleted');
-    }
+            if (!$oldData) {
+                throw new Exception('Delivery not found or already deleted');
+            }
 
-    $audit = audit_on_update($admin);
+            $audit = audit_on_update($admin);
 
-    // ✅ Soft delete + rename DR
-    $stmt = $conn->prepare("
+            $stmt = $conn->prepare("
         UPDATE delivery SET
+            soa_id       = NULL,
             dr_no        = CONCAT(dr_no, '_DELETED'),
             is_deleted   = 1,
             date_edited  = :edited,
             edited_by    = :edited_by
         WHERE del_id = :id
     ");
-    $stmt->execute([
-        ':edited'    => $audit['date_edited'],
-        ':edited_by' => $audit['edited_by'],
-        ':id'        => $id
-    ]);
+            $stmt->execute([
+                ':edited'    => $audit['date_edited'],
+                ':edited_by' => $audit['edited_by'],
+                ':id'        => $id
+            ]);
 
-    audit_log(
-        'delivery',
-        $id,
-        'DELETE',
-        $oldData,
-        ['is_deleted' => 1, 'dr_no' => $oldData['dr_no'] . '_DELETED'],
-        $admin
-    );
+            audit_log(
+                'delivery',
+                $id,
+                'DELETE',
+                $oldData,
+                [
+                    'soa_id'     => null,
+                    'is_deleted' => 1,
+                    'dr_no'      => $oldData['dr_no'] . '_DELETED'
+                ],
+                $admin
+            );
 
-    $_SESSION['alert'] = [
-        'type' => 'success',
-        'message' => 'Delivery deleted'
-    ];
+            $_SESSION['alert'] = [
+                'type' => 'success',
+                'message' => 'Delivery deleted'
+            ];
 
-    header("Location: /main.php#trans_entry.php?soa_id={$soa_id_post}");
-    exit;
-}
-
-
-
+            header("Location: /main.php#trans_entry.php?soa_id={$soa_id_post}");
+            exit;
+        }
 
         /* =====================================================
            BULK VALIDATE (NO INSERT, JSON RESPONSE)
@@ -175,7 +171,6 @@ if ($action === 'delete') {
             $qtys    = $_POST['bulk_quantity'] ?? [];
             $prices  = $_POST['bulk_unit_price'] ?? [];
 
-            // check required fields + DR uniqueness per row
             foreach ($dates as $i => $delivery_date) {
 
                 $delivery_date = trim((string)$delivery_date);
@@ -197,7 +192,6 @@ if ($action === 'delete') {
                     $errors[] = ['row' => $i, 'field' => 'bulk_unit_price'];
                 }
 
-                // DR uniqueness check (if provided)
                 if ($dr_no !== '') {
                     $chk = $conn->prepare("
                         SELECT COUNT(*) FROM delivery
@@ -227,26 +221,25 @@ if ($action === 'delete') {
            ===================================================== */
         if ($action === 'bulk_create') {
 
-    $dates   = $_POST['bulk_delivery_date'] ?? [];
-    $drs     = $_POST['bulk_dr_no'] ?? [];
-    $pos     = $_POST['bulk_po_number'] ?? [];
-    $trucks  = $_POST['bulk_truck_id'] ?? [];
-    $mats    = $_POST['bulk_material_name'] ?? [];
-    $qtys    = $_POST['bulk_quantity'] ?? [];
-    $prices  = $_POST['bulk_unit_price'] ?? [];
-    $status  = $_POST['bulk_status'] ?? [];
+            $dates   = $_POST['bulk_delivery_date'] ?? [];
+            $drs     = $_POST['bulk_dr_no'] ?? [];
+            $pos     = $_POST['bulk_po_number'] ?? [];
+            $trucks  = $_POST['bulk_truck_id'] ?? [];
+            $mats    = $_POST['bulk_material_name'] ?? [];
+            $qtys    = $_POST['bulk_quantity'] ?? [];
+            $prices  = $_POST['bulk_unit_price'] ?? [];
+            $status  = $_POST['bulk_status'] ?? [];
 
-    if (count($dates) === 0) {
-        throw new Exception('No bulk rows submitted');
-    }
+            if (count($dates) === 0) {
+                throw new Exception('No bulk rows submitted');
+            }
 
-    $audit = audit_on_create($admin);
+            $audit = audit_on_create($admin);
 
-    try {
-        // 🔒 START TRANSACTION
-        $conn->beginTransaction();
+            try {
+                $conn->beginTransaction();
 
-        $stmt = $conn->prepare("
+                $stmt = $conn->prepare("
             INSERT INTO delivery (
                 soa_id, company_id, delivery_date, dr_no,
                 po_number,
@@ -262,61 +255,56 @@ if ($action === 'delete') {
             )
         ");
 
-        foreach ($dates as $i => $delivery_date) {
+                foreach ($dates as $i => $delivery_date) {
 
-            $delivery_date = trim((string)$delivery_date);
-            $material      = trim((string)($mats[$i] ?? ''));
-            $quantity      = (float)($qtys[$i] ?? 0);
-            $unit_price    = (float)($prices[$i] ?? 0);
+                    $delivery_date = trim((string)$delivery_date);
+                    $material      = trim((string)($mats[$i] ?? ''));
+                    $quantity      = (float)($qtys[$i] ?? 0);
+                    $unit_price    = (float)($prices[$i] ?? 0);
 
-            // safety guard (frontend already validated)
-            if (
-                $delivery_date === '' ||
-                $material === '' ||
-                $quantity <= 0 ||
-                $unit_price <= 0
-            ) {
-                throw new Exception("Invalid data in bulk row #" . ($i + 1));
+                    if (
+                        $delivery_date === '' ||
+                        $material === '' ||
+                        $quantity <= 0 ||
+                        $unit_price <= 0
+                    ) {
+                        throw new Exception("Invalid data in bulk row #" . ($i + 1));
+                    }
+
+                    $po_number = trim((string)($pos[$i] ?? ''));
+                    $po_number = ($po_number === '') ? null : $po_number;
+
+                    $stmt->execute([
+                        ':soa_id'        => $soa_id_post,
+                        ':company_id'    => $company_id,
+                        ':delivery_date' => $delivery_date,
+                        ':dr_no'         => trim((string)($drs[$i] ?? '')),
+                        ':po_number'     => $po_number,
+                        ':truck_id'      => !empty($trucks[$i]) ? (int)$trucks[$i] : null,
+                        ':material'      => $material,
+                        ':quantity'      => $quantity,
+                        ':unit_price'    => $unit_price,
+                        ':status'        => $status[$i] ?? 'pending',
+                        ':dc'            => $audit['date_created'],
+                        ':de'            => $audit['date_edited'],
+                        ':cb'            => $audit['created_by'],
+                        ':eb'            => $audit['edited_by'],
+                    ]);
+                }
+                $conn->commit();
+            } catch (Exception $e) {
+                $conn->rollBack();
+                throw $e;
             }
 
-            $po_number = trim((string)($pos[$i] ?? ''));
-            $po_number = ($po_number === '') ? null : $po_number;
+            $_SESSION['alert'] = [
+                'type' => 'success',
+                'message' => 'Bulk deliveries saved successfully'
+            ];
 
-            $stmt->execute([
-                ':soa_id'        => $soa_id_post,
-                ':company_id'    => $company_id,
-                ':delivery_date' => $delivery_date,
-                ':dr_no'         => trim((string)($drs[$i] ?? '')),
-                ':po_number'     => $po_number,
-                ':truck_id'      => !empty($trucks[$i]) ? (int)$trucks[$i] : null,
-                ':material'      => $material,
-                ':quantity'      => $quantity,
-                ':unit_price'    => $unit_price,
-                ':status'        => $status[$i] ?? 'pending',
-                ':dc'            => $audit['date_created'],
-                ':de'            => $audit['date_edited'],
-                ':cb'            => $audit['created_by'],
-                ':eb'            => $audit['edited_by'],
-            ]);
+            header("Location: /main.php#trans_entry.php?soa_id={$soa_id_post}");
+            exit;
         }
-
-        // ✅ COMMIT if ALL rows succeed
-        $conn->commit();
-
-    } catch (Exception $e) {
-        $conn->rollBack();
-        throw $e;
-    }
-
-    $_SESSION['alert'] = [
-        'type' => 'success',
-        'message' => 'Bulk deliveries saved successfully'
-    ];
-
-    header("Location: /main.php#trans_entry.php?soa_id={$soa_id_post}");
-    exit;
-}
-
 
         /* =====================================================
            SINGLE CREATE / UPDATE
@@ -455,7 +443,6 @@ if ($action === 'delete') {
             exit;
         }
     }
-
 } catch (Exception $e) {
     $_SESSION['alert'] = ['type' => 'danger', 'message' => $e->getMessage()];
     header("Location: {$redirectUrl}?soa_id={$soa_id}");
