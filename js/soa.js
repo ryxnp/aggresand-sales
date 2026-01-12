@@ -47,3 +47,21 @@ window.SoaPage = (() => {
     return { init };
 
 })();
+
+$(document).on('click', '.soa-btn-edit', function () {
+    $('#soa_id').val($(this).data('id'));
+    $('#soa_no').val($(this).data('soa'));
+    $('#company_name').val($(this).data('company'));
+    $('#billing_date').val($(this).data('billing'));
+    $('#site_id').val($(this).data('site-id'));
+
+    $('#soa-form-title').text('Edit SOA');
+    $('#soa-cancel-btn').removeClass('d-none');
+});
+
+$('#soa-cancel-btn').on('click', function () {
+    $('#soa-form')[0].reset();
+    $('#soa_id').val('');
+    $('#soa-form-title').text('Edit SOA');
+    $(this).addClass('d-none');
+});

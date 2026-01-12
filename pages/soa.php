@@ -8,7 +8,7 @@ $admin       = $_SESSION['admin_id'] ?? null;
 $redirectUrl = '/main.php#soa.php';
 
 /* =========================================================
-   CRUD HANDLING (UPDATE BILLING DATE ONLY)
+   CRUD HANDLING (UPDATE + DELETE)
    ========================================================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -18,64 +18,150 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $action = $_POST['action'] ?? '';
-    $soa_id = (int)($_POST['soa_id'] ?? 0);
+    $action       = $_POST['action'] ?? '';
+    $soa_id       = (int)($_POST['soa_id'] ?? 0);
     $billing_date = $_POST['billing_date'] ?? '';
+    $site_id      = (int)($_POST['site_id'] ?? 0);
 
     try {
 
-        if ($action !== 'update') {
+        /* ================= UPDATE ================= */
+        if ($action === 'update') {
+
+            if ($soa_id <= 0) {
+                throw new Exception('Invalid SOA ID');
+            }
+
+            if ($site_id <= 0) {
+                throw new Exception('Invalid site');
+            }
+
+            if (!$billing_date || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $billing_date)) {
+                throw new Exception('Invalid billing date');
+            }
+
+            $oldStmt = $conn->prepare("
+                SELECT * FROM statement_of_account
+                WHERE soa_id = :id AND is_deleted = 0
+            ");
+            $oldStmt->execute([':id' => $soa_id]);
+            $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$oldData) {
+                throw new Exception('SOA not found');
+            }
+
+            $audit = audit_on_update($admin);
+
+            $stmt = $conn->prepare("
+                UPDATE statement_of_account SET
+                    billing_date = :billing_date,
+                    site_id      = :site_id,
+                    date_edited  = :edited,
+                    edited_by    = :edited_by
+                WHERE soa_id = :id
+            ");
+
+            $stmt->execute([
+                ':billing_date' => $billing_date,
+                ':site_id'      => $site_id,
+                ':edited'       => $audit['date_edited'],
+                ':edited_by'    => $audit['edited_by'],
+                ':id'           => $soa_id
+            ]);
+
+            audit_log(
+                'statement_of_account',
+                $soa_id,
+                'UPDATE',
+                $oldData,
+                [
+                    'billing_date' => $billing_date,
+                    'site_id'      => $site_id
+                ],
+                $admin
+            );
+
+            $_SESSION['alert'] = ['type' => 'success', 'message' => 'SOA updated successfully'];
+        }
+
+        /* ================= DELETE (SOFT + CASCADE) ================= */
+        elseif ($action === 'delete') {
+
+            if ($soa_id <= 0) {
+                throw new Exception('Invalid SOA ID');
+            }
+
+            $conn->beginTransaction();
+
+            $oldStmt = $conn->prepare("
+                SELECT * FROM statement_of_account
+                WHERE soa_id = :id AND is_deleted = 0
+            ");
+            $oldStmt->execute([':id' => $soa_id]);
+            $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$oldData) {
+                throw new Exception('SOA not found or already deleted');
+            }
+
+            $audit = audit_on_update($admin);
+
+            /* Soft delete SOA */
+            $stmt = $conn->prepare("
+                UPDATE statement_of_account SET
+                    is_deleted  = 1,
+                    date_edited = :edited,
+                    edited_by   = :edited_by
+                WHERE soa_id = :id
+            ");
+            $stmt->execute([
+                ':edited'    => $audit['date_edited'],
+                ':edited_by' => $audit['edited_by'],
+                ':id'        => $soa_id
+            ]);
+
+            /* Soft delete ALL deliveries under this SOA */
+            $stmt = $conn->prepare("
+                UPDATE delivery SET
+                    is_deleted  = 1,
+                    date_edited = :edited,
+                    edited_by   = :edited_by
+                WHERE soa_id = :id
+            ");
+            $stmt->execute([
+                ':edited'    => $audit['date_edited'],
+                ':edited_by' => $audit['edited_by'],
+                ':id'        => $soa_id
+            ]);
+
+            audit_log(
+                'statement_of_account',
+                $soa_id,
+                'DELETE',
+                $oldData,
+                ['is_deleted' => 1],
+                $admin
+            );
+
+            $conn->commit();
+
+            $_SESSION['alert'] = [
+                'type' => 'success',
+                'message' => 'SOA and all related deliveries were deleted'
+            ];
+        }
+
+        else {
             throw new Exception('Invalid action');
         }
 
-        if ($soa_id <= 0) {
-            throw new Exception('Invalid SOA ID');
-        }
-
-        if (!$billing_date || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $billing_date)) {
-            throw new Exception('Invalid billing date');
-        }
-
-        $oldStmt = $conn->prepare("
-            SELECT * FROM statement_of_account
-            WHERE soa_id = :id AND is_deleted = 0
-        ");
-        $oldStmt->execute([':id' => $soa_id]);
-        $oldData = $oldStmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$oldData) {
-            throw new Exception('SOA not found');
-        }
-
-        $audit = audit_on_update($admin);
-
-        $stmt = $conn->prepare("
-            UPDATE statement_of_account SET
-                billing_date = :billing_date,
-                date_edited  = :edited,
-                edited_by    = :edited_by
-            WHERE soa_id = :id
-        ");
-
-        $stmt->execute([
-            ':billing_date' => $billing_date,
-            ':edited'       => $audit['date_edited'],
-            ':edited_by'    => $audit['edited_by'],
-            ':id'           => $soa_id
-        ]);
-
-        audit_log(
-            'statement_of_account',
-            $soa_id,
-            'UPDATE',
-            $oldData,
-            ['billing_date' => $billing_date],
-            $admin
-        );
-
-        $_SESSION['alert'] = ['type' => 'success', 'message' => 'Billing date updated'];
-
     } catch (Exception $e) {
+
+        if ($conn->inTransaction()) {
+            $conn->rollBack();
+        }
+
         $_SESSION['alert'] = ['type' => 'danger', 'message' => $e->getMessage()];
     }
 
@@ -91,6 +177,16 @@ require_once __DIR__ . '/../helpers/alerts.php';
 
 $q = trim($_GET['q'] ?? '');
 
+/* ---------- LOAD SITES ---------- */
+$siteStmt = $conn->query("
+    SELECT site_id, site_name
+    FROM site
+    WHERE is_deleted = 0
+    ORDER BY site_name
+");
+$sites = $siteStmt->fetchAll(PDO::FETCH_ASSOC);
+
+/* ---------- LOAD SOAs ---------- */
 $sql = "
     SELECT
         s.soa_id,
@@ -100,6 +196,7 @@ $sql = "
         s.date_edited,
         co.company_name,
         si.site_name,
+        si.site_id,
         COUNT(d.del_id) AS delivery_count,
         COALESCE(SUM(d.quantity * d.unit_price), 0) AS total_amount
     FROM statement_of_account s
@@ -123,7 +220,9 @@ $sql .= "
 ";
 
 $stmt = $conn->prepare($sql);
-foreach ($params as $k => $v) $stmt->bindValue($k, $v);
+foreach ($params as $k => $v) {
+    $stmt->bindValue($k, $v);
+}
 $stmt->execute();
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
@@ -145,7 +244,7 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <!-- FORM -->
         <div class="col-lg-4 mb-4">
             <div class="card">
-                <div class="card-header" id="soa-form-title">Edit Billing Date</div>
+                <div class="card-header" id="soa-form-title">Edit SOA</div>
                 <div class="card-body">
                     <form id="soa-form" method="POST" action="pages/soa.php">
                         <input type="hidden" name="action" value="update">
@@ -163,7 +262,14 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
                         <div class="mb-3">
                             <label class="form-label">Site</label>
-                            <input type="text" id="site_name" class="form-control" readonly>
+                            <select name="site_id" id="site_id" class="form-select" required>
+                                <option value="">-- Select Site --</option>
+                                <?php foreach ($sites as $s): ?>
+                                    <option value="<?= (int)$s['site_id'] ?>">
+                                        <?= htmlspecialchars($s['site_name']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
 
                         <div class="mb-3">
@@ -172,7 +278,7 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                    class="form-control" required>
                         </div>
 
-                        <button class="btn btn-primary" id="soa-submit-btn">Update Billing Date</button>
+                        <button class="btn btn-primary">Update</button>
                         <button type="button" class="btn btn-secondary d-none" id="soa-cancel-btn">Cancel</button>
                     </form>
                 </div>
@@ -205,32 +311,38 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <th>Billing Date</th>
                                 <th>Deliveries</th>
                                 <th>Total Amount</th>
-                                <th width="100">Action</th>
+                                <th width="150">Action</th>
                             </tr>
                         </thead>
                         <tbody>
                         <?php if (!$rows): ?>
                             <tr><td colspan="7" class="text-center">No records found</td></tr>
-                        <?php else:
-                            foreach ($rows as $r): ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($r['soa_no']) ?></td>
-                                    <td><?= htmlspecialchars($r['company_name']) ?></td>
-                                    <td><?= htmlspecialchars($r['site_name']) ?></td>
-                                    <td><?= htmlspecialchars($r['billing_date']) ?></td>
-                                    <td><?= (int)$r['delivery_count'] ?></td>
-                                    <td><?= number_format((float)$r['total_amount'], 2) ?></td>
-                                    <td>
-                                        <button class="btn btn-sm btn-secondary soa-btn-edit"
-                                            data-id="<?= (int)$r['soa_id'] ?>"
-                                            data-soa="<?= htmlspecialchars($r['soa_no'], ENT_QUOTES) ?>"
-                                            data-company="<?= htmlspecialchars($r['company_name'], ENT_QUOTES) ?>"
-                                            data-site="<?= htmlspecialchars($r['site_name'], ENT_QUOTES) ?>"
-                                            data-billing="<?= htmlspecialchars($r['billing_date']) ?>">
-                                            Edit
-                                        </button>
-                                    </td>
-                                </tr>
+                        <?php else: foreach ($rows as $r): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($r['soa_no']) ?></td>
+                                <td><?= htmlspecialchars($r['company_name']) ?></td>
+                                <td><?= htmlspecialchars($r['site_name']) ?></td>
+                                <td><?= htmlspecialchars($r['billing_date']) ?></td>
+                                <td><?= (int)$r['delivery_count'] ?></td>
+                                <td><?= number_format((float)$r['total_amount'], 2) ?></td>
+                                <td class="d-flex gap-1">
+                                    <button class="btn btn-sm btn-secondary soa-btn-edit"
+                                        data-id="<?= (int)$r['soa_id'] ?>"
+                                        data-soa="<?= htmlspecialchars($r['soa_no'], ENT_QUOTES) ?>"
+                                        data-company="<?= htmlspecialchars($r['company_name'], ENT_QUOTES) ?>"
+                                        data-site-id="<?= (int)$r['site_id'] ?>"
+                                        data-billing="<?= htmlspecialchars($r['billing_date']) ?>">
+                                        Edit
+                                    </button>
+
+                                    <form method="POST" action="pages/soa.php"
+                                          onsubmit="return confirm('Delete this SOA and ALL its deliveries?');">
+                                        <input type="hidden" name="action" value="delete">
+                                        <input type="hidden" name="soa_id" value="<?= (int)$r['soa_id'] ?>">
+                                        <button class="btn btn-sm btn-danger">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
                         <?php endforeach; endif; ?>
                         </tbody>
                     </table>
@@ -241,3 +353,4 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     </div>
 </div>
+

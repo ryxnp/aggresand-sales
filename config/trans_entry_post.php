@@ -102,6 +102,35 @@ try {
         $company_id = (int)$soaRow['company_id'];
 
         /* =====================================================
+        DELETE
+        ===================================================== */
+        if ($action === 'delete') {
+
+            if ($id <= 0) {
+                throw new Exception('Invalid delivery ID');
+            }
+
+            $stmt = $conn->prepare("
+                UPDATE delivery
+                SET is_deleted = 1
+                WHERE del_id = :id
+                LIMIT 1
+            ");
+            $stmt->execute([':id' => $id]);
+
+            audit_log('delivery', $id, 'DELETE', null, $_POST, $admin);
+
+            $_SESSION['alert'] = [
+                'type' => 'success',
+                'message' => 'Delivery deleted'
+            ];
+
+            header("Location: /main.php#trans_entry.php?soa_id={$soa_id_post}");
+            exit;
+        }
+
+
+        /* =====================================================
            BULK VALIDATE (NO INSERT, JSON RESPONSE)
            ===================================================== */
         if ($action === 'bulk_validate') {

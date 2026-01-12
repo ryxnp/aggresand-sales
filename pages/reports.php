@@ -26,6 +26,19 @@ $stmt = $conn->prepare("
 ");
 $stmt->execute([':billing_date' => $billing_date]);
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+/* =========================
+   COUNT TOTAL DELIVERIES (ALL ROWS)
+========================= */
+$delStmt = $conn->prepare("
+    SELECT COUNT(d.del_id)
+    FROM delivery d
+    JOIN statement_of_account s ON d.soa_id = s.soa_id
+    WHERE s.billing_date = :billing_date
+    AND d.is_deleted = 0
+");
+$delStmt->execute([':billing_date' => $billing_date]);
+$totalDeliveries = (int)$delStmt->fetchColumn();
 ?>
 
 <div class="container-fluid">
@@ -78,6 +91,9 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <div class="card h-100">
                 <div class="card-header fw-bold">
                     Available SOAs — <?= htmlspecialchars($billing_date) ?>
+                    <span class="text-muted ms-2">
+                        (<?= number_format($totalDeliveries) ?> deliveries)
+                    </span>
                 </div>
 
                 <div class="card-body table-responsive">
