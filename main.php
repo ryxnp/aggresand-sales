@@ -47,9 +47,9 @@ if (!isset($_SESSION['admin_id'])) {
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-  <script src="js/scripts.js"></script>
 
   <script src="js/company.js"></script>
+  <script src="js/deliveries.js"></script>
   <script src="js/contractor.js"></script>
   <script src="js/site.js"></script>
   <script src="js/soa.js"></script>
@@ -57,6 +57,6 @@ if (!isset($_SESSION['admin_id'])) {
   <script src="js/trans_entry.js"></script>
   <script src="js/materials.js"></script>
   <script src="js/reports.js"></script>
-
+  <script src="js/scripts.js"></script>
   </body>
 </html>

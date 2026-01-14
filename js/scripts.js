@@ -6,6 +6,7 @@ $(function () {
 
     const ALLOWED_PAGES = [
         'trans_entry.php',
+        'deliveries.php',
         'reports.php',
         'contractor.php',
         'site.php',
@@ -105,6 +106,12 @@ $(function () {
             window.ReportsPage &&
             typeof window.ReportsPage.init === 'function') {
             window.ReportsPage.init();
+        }
+
+        if (page === 'deliveries.php' &&
+            window.DeliveriesPage &&
+            typeof window.DeliveriesPage.init === 'function') {
+            window.DeliveriesPage.init();
         }
 
         // SOA

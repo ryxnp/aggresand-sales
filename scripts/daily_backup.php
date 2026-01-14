@@ -1,12 +1,4 @@
 <?php
-/**
- * DAILY DATABASE BACKUP
- * - Excel (multi-sheet)
- * - SQL (insert-only, zipped)
- * - CSV (all tables, zipped)
- * Safe for Task Scheduler / Cron
- */
-
 require_once __DIR__ . '/../config/db.php';
 
 /* ---------------- CONFIG ---------------- */
@@ -45,7 +37,7 @@ $ts = date('Y-m-d_His');
 $PREFIX = 'AUTO_';
 
 /* =====================================================
-   1️⃣ EXCEL BACKUP (XML XLS – MULTI SHEET)
+   EXCEL BACKUP (XML XLS – MULTI SHEET)
 ===================================================== */
 
 $excelFile = "{$DIRS['excel']}/{$PREFIX}backup_$ts.xls";
@@ -88,7 +80,7 @@ $xml .= '</Workbook>';
 file_put_contents($excelFile, $xml);
 
 /* =====================================================
-   2️⃣ SQL BACKUP (INSERT-ONLY → ZIP)
+   SQL BACKUP (INSERT-ONLY → ZIP)
 ===================================================== */
 
 $sqlFile = "{$DIRS['sql']}/{$PREFIX}backup_$ts.sql";
@@ -124,7 +116,7 @@ $zip->close();
 unlink($sqlFile);
 
 /* =====================================================
-   3️⃣ CSV BACKUP (ALL TABLES → ZIP)
+   CSV BACKUP (ALL TABLES → ZIP)
 ===================================================== */
 
 $csvZip = "{$DIRS['csv']}/{$PREFIX}backup_$ts.csv.zip";
@@ -146,7 +138,7 @@ foreach ($tables as $table) {
 $zip->close();
 
 /* =====================================================
-   4️⃣ LOG BACKUPS
+   LOG BACKUPS
 ===================================================== */
 
 $log = $conn->prepare("

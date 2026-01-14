@@ -30,6 +30,7 @@ if (isset($_SERVER['REQUEST_URI']) && str_contains($_SERVER['REQUEST_URI'], '#')
 
 $allowedPages = [
     'trans_entry.php',
+    'deliveries.php',
     'reports.php',
     'contractor.php',
     'site.php',
