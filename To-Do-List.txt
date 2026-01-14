@@ -16,5 +16,18 @@ Add arguments
 Start in
 > C:\Users\{user}\Desktop\aggresand-sales\scripts
 
-ALTER TABLE statement_of_account
-ADD UNIQUE KEY uq_company_soa (company_id, soa_no);
+CREATE TABLE delivery_payments (
+    payment_id INT AUTO_INCREMENT PRIMARY KEY,
+    dr_no VARCHAR(50) NOT NULL,
+
+    si_no VARCHAR(50),
+    check_no VARCHAR(50),
+    date_paid DATE NOT NULL,
+
+    amount_paid DECIMAL(12,2) NOT NULL,
+    status ENUM('UNPAID','PARTIAL','PAID') NOT NULL,
+
+    created_by INT,
+    date_created DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_deleted TINYINT DEFAULT 0
+);
