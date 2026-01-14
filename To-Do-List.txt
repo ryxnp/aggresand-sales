@@ -16,18 +16,10 @@ Add arguments
 Start in
 > C:\Users\{user}\Desktop\aggresand-sales\scripts
 
-CREATE TABLE delivery_payments (
-    payment_id INT AUTO_INCREMENT PRIMARY KEY,
-    dr_no VARCHAR(50) NOT NULL,
 
-    si_no VARCHAR(50),
-    check_no VARCHAR(50),
-    date_paid DATE NOT NULL,
+USE aggresand_db;
+ALTER TABLE delivery_payments
+ADD COLUMN edited_by INT NULL AFTER created_by;
 
-    amount_paid DECIMAL(12,2) NOT NULL,
-    status ENUM('UNPAID','PARTIAL','PAID') NOT NULL,
+ADD UNIQUE KEY uq_delivery_payments_dr (dr_no);
 
-    created_by INT,
-    date_created DATETIME DEFAULT CURRENT_TIMESTAMP,
-    is_deleted TINYINT DEFAULT 0
-);
