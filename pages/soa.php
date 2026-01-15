@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../helpers/audit_fields.php';
 require_once __DIR__ . '/../helpers/audit.php';
 require_once __DIR__ . '/../helpers/soa.php';
+require_once __DIR__ . '/../helpers/date.php';
 
 $admin       = $_SESSION['admin_id'] ?? null;
 $redirectUrl = '/main.php#soa.php';
@@ -355,7 +356,7 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <td><?= htmlspecialchars($r['soa_no']) ?></td>
                                 <td><?= htmlspecialchars($r['company_name']) ?></td>
                                 <td><?= htmlspecialchars($r['site_name']) ?></td>
-                                <td><?= htmlspecialchars($r['billing_date']) ?></td>
+                                <td><?= formatDateMDY($r['billing_date']) ?></td>
                                 <td><?= (int)$r['delivery_count'] ?></td>
                                 <td><?= number_format((float)$r['total_amount'], 2) ?></td>
                                 <td class="d-flex gap-1">

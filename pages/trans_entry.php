@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../helpers/audit_fields.php';
 require_once __DIR__ . '/../helpers/audit.php';
 require_once __DIR__ . '/../helpers/soa.php';
+require_once __DIR__ . '/../helpers/date.php';
 
 $admin       = $_SESSION['admin_id'] ?? null;
 $redirectUrl = '/main.php#trans_entry.php';
@@ -595,7 +596,7 @@ $queryBase = http_build_query([
                             data-status="<?= htmlspecialchars($r['status']) ?>"
                             data-po="<?= htmlspecialchars($r['po_number'] ?? '', ENT_QUOTES) ?>">
                             <td><?= htmlspecialchars($r['dr_no']) ?></td>
-                            <td><?= htmlspecialchars($r['delivery_date']) ?></td>
+                            <td><?= formatDateMDY($r['delivery_date']) ?></td>
                             <td><?= htmlspecialchars($r['company_name']) ?></td>
                             <td><?= htmlspecialchars($r['site_name']) ?></td>
                             <td class="truck-plate"><?= htmlspecialchars($r['plate_no'] ?? '') ?></td>

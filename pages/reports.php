@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../helpers/date.php';
 
 /* =========================
    BILLING DATE (FROM HASH / GET)
@@ -90,7 +91,7 @@ $totalDeliveries = (int)$delStmt->fetchColumn();
         <div class="col-lg-8">
             <div class="card h-100">
                 <div class="card-header fw-bold">
-                    Available SOAs — <?= htmlspecialchars($billing_date) ?>
+                    Available SOAs — <?= formatDateMDY($billing_date) ?>
                     <span class="text-muted ms-2">
                         (<?= number_format($totalDeliveries) ?> deliveries)
                     </span>
@@ -120,7 +121,7 @@ $totalDeliveries = (int)$delStmt->fetchColumn();
                                     <td><?= htmlspecialchars($r['soa_no']) ?></td>
                                     <td><?= htmlspecialchars($r['company_name']) ?></td>
                                     <td><?= htmlspecialchars($r['site_name']) ?></td>
-                                    <td><?= htmlspecialchars($r['billing_date']) ?></td>
+                                    <td><?= formatDateMDY($r['billing_date']) ?></td>
                                     <td>
                                         <?= $r['terms'] === '*'
                                             ? '<strong>No Cash Payment</strong>'

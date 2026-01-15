@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../helpers/alerts.php';
+require_once __DIR__ . '/../helpers/date.php';
 
 $admin = $_SESSION['admin_id'] ?? null;
 
@@ -256,14 +257,14 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                 data-dr="<?= htmlspecialchars($r['dr_no'], ENT_QUOTES) ?>"
                                 data-total="<?= number_format((float)$r['line_total'], 2, '.', '') ?>"
                                 data-status="<?= htmlspecialchars($r['pay_status'] ?? 'UNPAID', ENT_QUOTES) ?>"
-                                data-date="<?= htmlspecialchars($r['pay_date'] ?? '', ENT_QUOTES) ?>"
+                                data-date="<?= formatDateMDY($r['pay_date'] ?? '', ENT_QUOTES) ?>"
                                 data-si="<?= htmlspecialchars($r['pay_si'] ?? '', ENT_QUOTES) ?>"
                                 data-check="<?= htmlspecialchars($r['pay_check'] ?? '', ENT_QUOTES) ?>"
                                 data-paid="<?= number_format((float)($r['pay_amount'] ?? 0), 2, '.', '') ?>"
-                                data-billing="<?= htmlspecialchars($r['billing_date'] ?? '', ENT_QUOTES) ?>">
+                                data-billing="<?= formatDateMDY($r['billing_date'] ?? '', ENT_QUOTES) ?>">
                                 <td><?= htmlspecialchars($r['company_name']) ?></td>
                                 <td><?= htmlspecialchars($r['site_name'] ?? '-') ?></td>
-                                <td><?= htmlspecialchars($r['delivery_date']) ?></td>
+                                <td><?= formatDateMDY($r['delivery_date']) ?></td>
                                 <td><?= htmlspecialchars($r['dr_no']) ?></td>
                                 <td><?= htmlspecialchars($r['plate_no']) ?></td>
                                 <td><?= htmlspecialchars($r['material']) ?></td>
