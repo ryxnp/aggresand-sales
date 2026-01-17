@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../helpers/date.php';
 
 $termsValue = trim((string)($soa['terms'] ?? ''));
 
@@ -43,6 +44,28 @@ $soa = $soaStmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$soa) {
     die('SOA not found');
+}
+
+/* =========================
+   FETCH PO NUMBER (FROM DELIVERY)
+========================= */
+$poStmt = $conn->prepare("
+    SELECT DISTINCT d.po_number
+    FROM delivery d
+    WHERE d.soa_id = :soa_id
+      AND d.is_deleted = 0
+      AND d.po_number IS NOT NULL
+      AND d.po_number <> ''
+");
+$poStmt->execute([':soa_id' => $soa_id]);
+$poNumbers = $poStmt->fetchAll(PDO::FETCH_COLUMN);
+
+if (count($poNumbers) === 1) {
+    $poDisplay = $poNumbers[0];
+} elseif (count($poNumbers) > 1) {
+    $poDisplay = 'MULTIPLE';
+} else {
+    $poDisplay = '-';
 }
 
 /* =========================
@@ -137,7 +160,7 @@ foreach ($rows as $r) {
         <td class="value left"><?= htmlspecialchars($soa['site_name']) ?></td>
 
         <td class="label right">PO Number:</td>
-        <td class="value right">*</td>
+        <td class="value right"><?= htmlspecialchars($poDisplay) ?></td>
     </tr>
 </table>
 
@@ -162,7 +185,7 @@ foreach ($rows as $r) {
     ?>
 
     <tr>
-        <td><?= htmlspecialchars($r['delivery_date']) ?></td>
+        <td><?= formatDateMDY($r['delivery_date']) ?></td>
         <td><?= htmlspecialchars($r['dr_no']) ?></td>
         <td><?= htmlspecialchars($r['plate_no']) ?></td>
         <td><?= htmlspecialchars($r['material']) ?></td>

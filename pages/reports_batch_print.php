@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../helpers/date.php';
 
 /* =========================
    VALIDATION
@@ -37,6 +38,22 @@ $soas = $soaStmt->fetchAll(PDO::FETCH_ASSOC);
 function printSOA(PDO $conn, array $soa, bool $pageBreak)
 {
     $rowsPerPage = 20;
+
+    /* =========================
+   FETCH PO NUMBER (from delivery)
+    ========================= */
+    $poStmt = $conn->prepare("
+        SELECT d.po_number
+        FROM delivery d
+        WHERE d.soa_id = :soa_id
+        AND d.is_deleted = 0
+        AND d.po_number IS NOT NULL
+        AND d.po_number <> ''
+        ORDER BY d.delivery_date, d.dr_no
+    ");
+    $poStmt->execute([':soa_id' => $soa['soa_id']]);
+    $poNumber = $poStmt->fetchColumn() ?: '-';
+
 
     /* =========================
        FETCH DRs
@@ -123,7 +140,7 @@ function printSOA(PDO $conn, array $soa, bool $pageBreak)
                     <td class="value left"><?= htmlspecialchars($soa['site_name']) ?></td>
 
                     <td class="label right">PO Number:</td>
-                    <td class="value right">*</td>
+                    <td class="value right"><?= htmlspecialchars($poNumber) ?></td>
                 </tr>
             </table>
 
@@ -159,7 +176,7 @@ function printSOA(PDO $conn, array $soa, bool $pageBreak)
             $amount = (float)$r['quantity'] * (float)$r['unit_price'];
             ?>
             <tr>
-                <td><?= htmlspecialchars($r['delivery_date']) ?></td>
+                <td><?= formatDateMDY($r['delivery_date']) ?></td>
                 <td><?= htmlspecialchars($r['dr_no']) ?></td>
                 <td><?= htmlspecialchars($r['plate_no']) ?></td>
                 <td><?= htmlspecialchars($r['material']) ?></td>
